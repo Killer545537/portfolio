@@ -4,8 +4,9 @@
 # Environment variables
 .env
 
-# Ideas and Notes
+# Ideas and IDE
 .ideas
+.zed
 
 # Build files
 /target
