@@ -1,0 +1,215 @@
+# =========================
+# Profile
+# =========================
+
+[profile]
+name = "Srijan Mahajan"
+phonetic = "/ˈsriːdʒən məˈhɑːdʒən/"
+title = "Full-Stack & Systems Developer"
+location = "India"
+
+[profile.contact]
+phone = "+91-8178863697"
+email = "srajanmahajan1@gmail.com"
+linkedin = "LinkedIn"
+
+profile.bio = [
+  "Full-stack developer with 2+ years of experience building high-performance systems using Rust and TypeScript.",
+  "Focused on API design, authentication protocols, distributed systems, and real-time applications.",
+  "Strong background in containerization, CI/CD pipelines, and scalable cloud deployments."
+]
+
+# =========================
+# Education
+# =========================
+
+[[education]]
+institution = "Netaji Subhas University of Technology"
+degree = "B.Tech"
+period = "2023 - Present"
+location = "India"
+
+[[education]]
+institution = "The Indian Heights School, Dwarka"
+degree = "Class XII"
+period = "2022 - 2023"
+
+[[education]]
+institution = "The Indian Heights School, Dwarka"
+degree = "Class X"
+period = "2020 - 2021"
+
+# =========================
+# Achievements
+# =========================
+
+[[achievements]]
+title = "JEE Main 2023"
+detail = "98.98 percentile; qualified JEE Advanced"
+
+[[achievements]]
+title = "IOQM"
+detail = "Top 300 rank"
+
+# =========================
+# Experience
+# =========================
+
+
+[[experience]]
+role = "Backend Developer Intern"
+organization = "LogiXJunction"
+location = "India"
+period = "2023"
+
+description = [
+  "Early engineering member at a college-based startup, responsible for building the core backend from the ground up.",
+  "Developed RESTful APIs using JavaScript and Express.",
+  "Designed and implemented core business logic and backend workflows.",
+  "Contributed to system architecture decisions during initial product development phase."
+]
+
+[[experience]]
+role = "Executive Committee Member"
+organization = "Axiom – Philosophical Society, NSUT"
+location = "India"
+period = "Jan 2023"
+
+description = [
+  "Organized 12 large-scale events with 1,200+ total attendees.",
+  "Increased social media engagement by 40% within 6 months."
+]
+
+# =========================
+# Projects
+# =========================
+
+[[projects]]
+title = "Local Chat Server"
+category = "Distributed Systems / Real-Time"
+tech = ["Rust", "WebSockets", "JWT", "OAuth2", "PostgreSQL"]
+
+highlights = [
+  "Built LAN-based chat system handling 20 concurrent users and 10,000+ messages/day.",
+  "Implemented JWT and OAuth2 authentication flows reducing auth errors by 95%.",
+  "Achieved 90% test coverage using cargo test and Clippy linting."
+]
+
+[[projects]]
+title = "Droply"
+category = "Cloud Systems"
+tech = ["TypeScript", "Next.js", "AWS", "S3", "ImageKit CDN"]
+
+highlights = [
+  "Google Drive–like file storage system supporting 500+ daily uploads.",
+  "Maintained 99.9% uptime.",
+  "Reduced image load time by 60% via CDN integration."
+]
+
+[[projects]]
+title = "Expression Parser (Crate)"
+category = "Compiler / Systems"
+tech = ["Rust", "Macros"]
+
+highlights = [
+  "Published on crates.io with 150+ downloads and 30+ GitHub stars.",
+  "Implemented compile-time validation eliminating runtime parse errors."
+]
+
+[[projects]]
+title = "Advent of Code 2025"
+category = "Algorithms"
+
+highlights = [
+  "Solved all 12 problems.",
+  "Optimized solutions improving runtime by 20% on average."
+]
+
+[[projects]]
+title = "Captions Extractor"
+category = "Desktop Application / Systems Integration"
+tech = ["Rust", "Tauri", "React", "yt-dlp", "Groq API"]
+
+highlights = [
+  "Built a cross-platform desktop application using Tauri (Rust backend + React frontend).",
+  "Integrated yt-dlp for automated caption extraction from YouTube videos.",
+  "Implemented local-first processing where users provide their own Groq API key for caption cleaning.",
+  "Ensured all operations run locally, with no centralized backend, preserving user privacy and minimizing latency."
+]
+
+[[projects]]
+title = "Real-Time Chat with SQLX"
+category = "Technical Writing"
+
+highlights = [
+  "Published Medium article with 1,200+ monthly views and 80+ claps."
+]
+
+# =========================
+# Tech Stack
+# =========================
+
+[techStack]
+
+languages = [
+  "Rust",
+  "TypeScript",
+  "Python",
+  "C",
+  "C++",
+  "Haskell",
+  "Java"
+]
+
+backend = [
+  "REST",
+  "GraphQL",
+  "Node.js",
+  "Flask",
+  "JWT",
+  "OAuth2",
+  "Middleware"
+]
+
+databases = [
+  "PostgreSQL",
+  "Redis"
+]
+
+cloudDevOps = [
+  "AWS",
+  "EC2",
+  "S3",
+  "Docker",
+  "GitHub Actions",
+  "CI/CD"
+]
+
+frontend = [
+  "Next.js",
+  "React"
+]
+
+# =========================
+# Languages Spoken
+# =========================
+
+[[languagesSpoken]]
+language = "English"
+proficiency = "Native"
+
+[[languagesSpoken]]
+language = "Hindi"
+proficiency = "Native"
+
+# =========================
+# Interests
+# =========================
+
+interests = [
+  "Systems Programming",
+  "Distributed Systems",
+  "Authentication Protocols",
+  "Real-Time Infrastructure",
+  "Algorithmic Problem Solving"
+]

@@ -15,7 +15,13 @@ const config = defineConfig({
     },
     plugins: [
         devtools(),
-        nitro(),
+        nitro({
+            vercel: {
+                functions: {
+                    runtime: 'bun1.x',
+                },
+            },
+        }),
         // this is the plugin that enables path aliases
         viteTsConfigPaths({
             projects: ['./tsconfig.json'],
