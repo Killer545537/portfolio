@@ -1,20 +1,43 @@
+//! SSH Client Handler with analytics, database, and email support
+
 use anyhow::{Error, Result};
 use russh::{
     Channel, ChannelId, CryptoVec, Pty,
     server::{Auth, Msg, Session},
 };
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
 
+use crate::db::OptionalDatabase;
+use crate::email::OptionalEmailClient;
 use crate::ui;
 
 /// Shared map of all connected clients
 pub type ClientMap = Arc<Mutex<HashMap<usize, ClientInfo>>>;
 
+/// Shared services for all handlers
+#[derive(Clone)]
+pub struct SharedServices {
+    pub db: OptionalDatabase,
+    pub email: OptionalEmailClient,
+}
+
 /// Information stored for each connected client
+#[allow(dead_code)]
 pub struct ClientInfo {
     pub channel_id: ChannelId,
     pub handle: russh::server::Handle,
+}
+
+/// Input state for multi-step forms
+#[derive(Clone, Debug)]
+pub enum InputState {
+    /// Normal command input
+    Command,
+    /// Waiting for name in connect form
+    ConnectName,
+    /// Waiting for email in connect form (name already provided)
+    ConnectEmail { name: String },
 }
 
 /// Represents a connected SSH client session
@@ -22,22 +45,41 @@ pub struct ClientInfo {
 pub struct ClientHandler {
     /// Shared map of all connected clients
     clients: ClientMap,
+    /// Shared services (database, email)
+    services: SharedServices,
     /// Unique identifier for this client
     id: usize,
+    /// Session ID for analytics
+    session_id: String,
+    /// Client address
+    client_addr: Option<SocketAddr>,
     /// Username of the authenticated client
     username: Option<String>,
     /// Input buffer for accumulating characters until Enter is pressed
     input_buffer: String,
+    /// Current input state
+    input_state: InputState,
 }
 
 impl ClientHandler {
     /// Create a new client handler
-    pub fn new(id: usize, clients: ClientMap) -> Self {
+    pub fn new(
+        id: usize,
+        clients: ClientMap,
+        services: SharedServices,
+        client_addr: Option<SocketAddr>,
+    ) -> Self {
+        let session_id = format!("ssh-{}-{}", id, chrono::Utc::now().timestamp());
+
         Self {
             clients,
+            services,
             id,
+            session_id,
+            client_addr,
             username: None,
             input_buffer: String::new(),
+            input_state: InputState::Command,
         }
     }
 
@@ -49,6 +91,13 @@ impl ClientHandler {
 
     /// Send data to the client's channel
     async fn send_welcome(&self, channel: ChannelId, session: &mut Session) -> Result<()> {
+        // Track connection
+        let addr_str = self.client_addr.map(|a| a.to_string());
+        self.services
+            .db
+            .track_connect(&self.session_id, addr_str.as_deref())
+            .await;
+
         let welcome = ui::render_welcome_message();
         let data = CryptoVec::from(welcome.as_bytes());
         session.data(channel, data)?;
@@ -64,13 +113,35 @@ impl ClientHandler {
         Ok(())
     }
 
-    /// Send a prompt to the client
+    /// Send a prompt to the client based on current state
     fn send_prompt(&self, channel: ChannelId, session: &mut Session) -> Result<()> {
-        self.send_message(channel, "\r\n> ", session)
+        let prompt = match &self.input_state {
+            InputState::Command => "\r\n> ",
+            InputState::ConnectName => "  Your name: ",
+            InputState::ConnectEmail { .. } => "  Your email: ",
+        };
+        self.send_message(channel, prompt, session)
+    }
+
+    /// Process input based on current state
+    async fn process_input(
+        &mut self,
+        channel: ChannelId,
+        input: &str,
+        session: &mut Session,
+    ) -> Result<bool> {
+        match self.input_state.clone() {
+            InputState::Command => self.process_command(channel, input, session).await,
+            InputState::ConnectName => self.process_connect_name(channel, input, session).await,
+            InputState::ConnectEmail { name } => {
+                self.process_connect_email(channel, input, &name, session)
+                    .await
+            }
+        }
     }
 
     /// Process a complete command (after Enter is pressed)
-    fn process_command(
+    async fn process_command(
         &mut self,
         channel: ChannelId,
         command: &str,
@@ -78,9 +149,15 @@ impl ClientHandler {
     ) -> Result<bool> {
         let cmd = command.trim().to_lowercase();
 
+        // Track command analytics (non-empty commands)
+        if !cmd.is_empty() {
+            self.services.db.track_command(&self.session_id, &cmd).await;
+        }
+
         match cmd.as_str() {
             "q" | "quit" | "exit" => {
                 println!("[{}] Client requested disconnect", self.id);
+                self.services.db.track_disconnect(&self.session_id).await;
                 self.send_message(channel, &ui::render_goodbye(), session)?;
                 return Ok(true); // Signal to close the channel
             }
@@ -93,8 +170,22 @@ impl ClientHandler {
             "skills" => {
                 self.send_message(channel, &ui::render_skills(), session)?;
             }
+            "experience" | "exp" => {
+                self.send_message(channel, &ui::render_experience(), session)?;
+            }
+            "projects" | "proj" => {
+                self.send_message(channel, &ui::render_projects(), session)?;
+            }
+            "education" | "edu" => {
+                self.send_message(channel, &ui::render_education(), session)?;
+            }
             "contact" => {
                 self.send_message(channel, &ui::render_contact(), session)?;
+            }
+            "connect" => {
+                // Start the connect flow
+                self.send_message(channel, &ui::render_connect_prompt(), session)?;
+                self.input_state = InputState::ConnectName;
             }
             "" => {
                 // Empty command, just show prompt again
@@ -107,6 +198,111 @@ impl ClientHandler {
         // Send a new prompt
         self.send_prompt(channel, session)?;
         Ok(false) // Don't close the channel
+    }
+
+    /// Process name input for connect form
+    async fn process_connect_name(
+        &mut self,
+        channel: ChannelId,
+        name: &str,
+        session: &mut Session,
+    ) -> Result<bool> {
+        let name = name.trim().to_string();
+
+        if name.is_empty() {
+            self.send_message(
+                channel,
+                &ui::render_connect_error("Name cannot be empty"),
+                session,
+            )?;
+            self.send_prompt(channel, session)?;
+            return Ok(false);
+        }
+
+        // Move to email state
+        self.input_state = InputState::ConnectEmail { name };
+        self.send_prompt(channel, session)?;
+        Ok(false)
+    }
+
+    /// Process email input for connect form
+    async fn process_connect_email(
+        &mut self,
+        channel: ChannelId,
+        email: &str,
+        name: &str,
+        session: &mut Session,
+    ) -> Result<bool> {
+        let email = email.trim().to_string();
+
+        // Basic email validation
+        if !is_valid_email(&email) {
+            self.send_message(
+                channel,
+                &ui::render_connect_error("Please enter a valid email address"),
+                session,
+            )?;
+            self.send_prompt(channel, session)?;
+            return Ok(false);
+        }
+
+        // Show processing message
+        self.send_message(channel, &ui::render_connect_processing(), session)?;
+
+        // Store contact and send email
+        let success = self.submit_contact(name, &email).await;
+
+        if success {
+            self.send_message(channel, &ui::render_connect_success(name), session)?;
+        } else {
+            self.send_message(
+                channel,
+                &ui::render_connect_error("Something went wrong. Please try again later."),
+                session,
+            )?;
+        }
+
+        // Reset to command state
+        self.input_state = InputState::Command;
+        self.send_prompt(channel, session)?;
+        Ok(false)
+    }
+
+    /// Submit contact to database and send email
+    async fn submit_contact(&self, name: &str, email: &str) -> bool {
+        // Track the contact event
+        self.services
+            .db
+            .track_contact(&self.session_id, email)
+            .await;
+
+        // Store in database
+        if let Err(e) = self.services.db.store_contact(email).await {
+            eprintln!("[{}] Failed to store contact: {}", self.id, e);
+            // Continue anyway - email might still work
+        }
+
+        // Send email
+        match self.services.email.send_connection_email(name, email).await {
+            Ok(()) => {
+                println!("[{}] Sent connection email to {}", self.id, email);
+                true
+            }
+            Err(e) => {
+                eprintln!("[{}] Failed to send email to {}: {}", self.id, email, e);
+                // Return true if email client is not configured (graceful degradation)
+                !self.services.email.is_available()
+            }
+        }
+    }
+
+    /// Cancel current form and return to command mode
+    fn cancel_form(&mut self, channel: ChannelId, session: &mut Session) -> Result<()> {
+        if !matches!(self.input_state, InputState::Command) {
+            self.input_state = InputState::Command;
+            self.send_message(channel, &ui::render_connect_cancelled(), session)?;
+        }
+        Ok(())
     }
 }
 
@@ -203,9 +399,9 @@ impl russh::server::Handler for ClientHandler {
                     // Move to new line
                     self.send_message(channel, "\r\n", session)?;
 
-                    // Process the buffered command
-                    let command = std::mem::take(&mut self.input_buffer);
-                    let should_close = self.process_command(channel, &command, session)?;
+                    // Process the buffered input
+                    let input = std::mem::take(&mut self.input_buffer);
+                    let should_close = self.process_input(channel, &input, session).await?;
 
                     if should_close {
                         session.close(channel)?;
@@ -220,15 +416,17 @@ impl russh::server::Handler for ClientHandler {
                         self.send_message(channel, "\x08 \x08", session)?;
                     }
                 }
-                // Ctrl+C - cancel current input
+                // Ctrl+C - cancel current input/form
                 3 => {
                     self.input_buffer.clear();
+                    self.cancel_form(channel, session)?;
                     self.send_message(channel, "^C\r\n", session)?;
                     self.send_prompt(channel, session)?;
                 }
                 // Ctrl+D - exit
                 4 => {
                     println!("[{}] Client sent Ctrl+D", self.id);
+                    self.services.db.track_disconnect(&self.session_id).await;
                     self.send_message(channel, &ui::render_goodbye(), session)?;
                     session.close(channel)?;
                     return Ok(());
@@ -267,10 +465,64 @@ impl russh::server::Handler for ClientHandler {
     ) -> Result<(), Self::Error> {
         println!("[{}] Channel {:?} closed", self.id, channel);
 
+        // Track disconnection
+        self.services.db.track_disconnect(&self.session_id).await;
+
         // Remove client from the shared map
         let mut clients = self.clients.lock().await;
         clients.remove(&self.id);
 
         Ok(())
+    }
+}
+
+/// Basic email validation
+fn is_valid_email(email: &str) -> bool {
+    // Simple validation: contains @ with text on both sides
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+
+    let local = parts[0];
+    let domain = parts[1];
+
+    // Local part and domain must not be empty
+    if local.is_empty() || domain.is_empty() {
+        return false;
+    }
+
+    // Domain must contain at least one dot
+    if !domain.contains('.') {
+        return false;
+    }
+
+    // Domain must not start or end with a dot
+    if domain.starts_with('.') || domain.ends_with('.') {
+        return false;
+    }
+
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_emails() {
+        assert!(is_valid_email("test@example.com"));
+        assert!(is_valid_email("user.name@domain.co.uk"));
+        assert!(is_valid_email("user+tag@gmail.com"));
+    }
+
+    #[test]
+    fn test_invalid_emails() {
+        assert!(!is_valid_email("invalid"));
+        assert!(!is_valid_email("@domain.com"));
+        assert!(!is_valid_email("user@"));
+        assert!(!is_valid_email("user@domain"));
+        assert!(!is_valid_email("user@.com"));
+        assert!(!is_valid_email("user@domain."));
     }
 }

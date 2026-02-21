@@ -1,0 +1,49 @@
+# Git
+.git
+.gitignore
+
+# IDE and editor files
+.zed
+.vscode
+.idea
+*.swp
+*.swo
+
+# Rust build artifacts (we build fresh in Docker)
+target/
+
+# Node modules (we install fresh in Docker)
+apps/web/node_modules/
+apps/web/.output/
+apps/web/.tanstack/
+
+# Environment files (secrets - don't include in build context)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation and ideas
+.ideas/
+README.md
+
+# Test and development files
+*.test.*
+*.spec.*
+coverage/
+
+# Database local files
+db/
+*.sqlite
+*.db
+
+# Docker files themselves
+docker-compose.yml
+.dockerignore

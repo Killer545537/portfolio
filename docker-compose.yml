@@ -1,0 +1,36 @@
+services:
+    web:
+        build:
+            context: .
+            dockerfile: ./apps/web/Dockerfile
+        container_name: portfolio-web
+        restart: unless-stopped
+        ports:
+            - "3000:3000"
+        environment:
+            - NODE_ENV=production
+            - PORT=3000
+            - DATABASE_URL=${DATABASE_URL}
+            - RESEND_API_KEY=${RESEND_API_KEY:-}
+        volumes:
+            - ./me.toml:/app/me.toml:ro
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
+            start_period: 10s
+
+    ssh:
+        build:
+            context: .
+            dockerfile: ./apps/ssh/Dockerfile
+        container_name: portfolio-ssh
+        restart: unless-stopped
+        ports:
+            - "2222:2222"
+        environment:
+            - DATABASE_URL=${DATABASE_URL}
+            - RESEND_API_KEY=${RESEND_API_KEY:-}
+        volumes:
+            - ./me.toml:/app/me.toml:ro
