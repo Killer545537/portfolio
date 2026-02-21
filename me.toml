@@ -64,6 +64,7 @@ role = "Backend Developer Intern"
 organization = "LogiXJunction"
 location = "India"
 period = "Jun 2025 - Dec 2025"
+link = "https://logixjunction.com"
 description = [
   "Early engineering member at a college-based startup, responsible for building the core backend from the ground up.",
   "Developed RESTful APIs using JavaScript and Express.",
@@ -76,6 +77,7 @@ role = "Executive Committee Member"
 organization = "Axiom – Philosophical Society, NSUT"
 location = "India"
 period = "Jan 2023"
+link = "https://axiomnsut.github.io/about/"
 description = [
   "Organized 12 large-scale events with 1,200+ total attendees.",
   "Increased social media engagement by 40% within 6 months."
@@ -89,6 +91,7 @@ description = [
 title = "Local Chat Server"
 category = "Distributed Systems / Real-Time"
 tech = ["Rust", "WebSockets", "JWT", "OAuth2", "PostgreSQL"]
+link = "https://github.com/Killer545537/Local-Chat-Server"
 highlights = [
   "Built LAN-based chat system handling 20 concurrent users and 10,000+ messages/day.",
   "Implemented JWT and OAuth2 authentication flows reducing auth errors by 95%.",
@@ -99,6 +102,7 @@ highlights = [
 title = "Captions Extractor"
 category = "Desktop Application / Systems Integration"
 tech = ["Rust", "Tauri", "React", "yt-dlp"]
+link = "https://github.com/Killer545537/captions-extractor"
 highlights = [
   "Built a cross-platform desktop application using Tauri (Rust backend + React frontend).",
   "Integrated yt-dlp for automated caption extraction from YouTube videos.",
@@ -107,19 +111,10 @@ highlights = [
 ]
 
 [[projects]]
-title = "Droply"
-category = "Cloud Systems"
-tech = ["TypeScript", "Next.js", "AWS", "S3", "ImageKit CDN"]
-highlights = [
-  "Google Drive–like file storage system supporting 500+ daily uploads.",
-  "Maintained 99.9% uptime.",
-  "Reduced image load time by 60% via CDN integration."
-]
-
-[[projects]]
 title = "Expression Parser (Crate)"
 category = "Compiler / Systems"
 tech = ["Rust", "Macros"]
+link = "https://crates.io/crates/expression_parser_sympy"
 highlights = [
   "Published on crates.io with 150+ downloads and 30+ GitHub stars.",
   "Implemented compile-time validation eliminating runtime parse errors."
@@ -129,6 +124,7 @@ highlights = [
 title = "Advent of Code 2025"
 category = "Algorithms"
 tech = []
+link = "https://github.com/Killer545537/aoc-2025"
 highlights = [
   "Solved all 12 problems.",
   "Optimized solutions improving runtime by 20% on average."
@@ -138,6 +134,7 @@ highlights = [
 title = "Real-Time Chat with SQLX"
 category = "Technical Writing"
 tech = []
+link = "https://medium.com/@srajanmahajan1/building-a-real-time-chat-application-with-websockets-and-sqlx-ae059bb785ac"
 highlights = [
   "Published Medium article with 1,200+ monthly views and 80+ claps."
 ]

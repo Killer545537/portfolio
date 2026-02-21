@@ -1,5 +1,6 @@
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, ExternalLink } from 'lucide-react';
 import { useState } from 'react';
+import { useTrack } from '@/lib/portfolio-context';
 import type { Experience } from '@/lib/types';
 
 interface ExperienceItemProps {
@@ -8,6 +9,24 @@ interface ExperienceItemProps {
 
 export function ExperienceItem({ exp }: ExperienceItemProps) {
     const [isOpen, setIsOpen] = useState(true);
+    const track = useTrack();
+
+    const handleToggle = () => {
+        track('experience_click', {
+            organization: exp.organization,
+            role: exp.role,
+            action: isOpen ? 'collapse' : 'expand',
+        });
+        setIsOpen(!isOpen);
+    };
+
+    const handleLinkClick = () => {
+        track('experience_link_click', {
+            organization: exp.organization,
+            role: exp.role,
+            link: exp.link,
+        });
+    };
 
     return (
         <div className='mb-10 last:mb-0 group'>
@@ -16,6 +35,17 @@ export function ExperienceItem({ exp }: ExperienceItemProps) {
                     <h3 className='font-semibold text-zinc-900 text-xl'>
                         {exp.organization}
                     </h3>
+                    {exp.link && (
+                        <a
+                            href={exp.link}
+                            target='_blank'
+                            rel='noreferrer'
+                            onClick={handleLinkClick}
+                            className='text-zinc-400 hover:text-zinc-900 transition-colors'
+                        >
+                            <ExternalLink size={16} />
+                        </a>
+                    )}
                 </div>
                 <span className='text-sm text-zinc-400 font-medium'>
                     {exp.location}
@@ -31,7 +61,7 @@ export function ExperienceItem({ exp }: ExperienceItemProps) {
             </div>
 
             <div
-                className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}
+                className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-125 opacity-100' : 'max-h-0 opacity-0'}`}
             >
                 <ul className='space-y-2'>
                     {exp.description.map((desc, idx) => (
@@ -47,7 +77,7 @@ export function ExperienceItem({ exp }: ExperienceItemProps) {
             </div>
 
             <button
-                onClick={() => setIsOpen(!isOpen)}
+                onClick={handleToggle}
                 className='text-xs text-zinc-400 flex items-center gap-1 hover:text-zinc-900 transition-colors mt-3 font-medium uppercase tracking-wide'
             >
                 {isOpen ? 'Collapse' : 'Expand Details'}

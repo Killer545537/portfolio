@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import { useTrack } from '@/lib/portfolio-context';
 import type { Project } from '@/lib/types';
 
 interface ProjectItemProps {
@@ -7,6 +8,15 @@ interface ProjectItemProps {
 }
 
 export function ProjectItem({ project }: ProjectItemProps) {
+    const track = useTrack();
+
+    const handleProjectLinkClick = () => {
+        track('project_link_click', {
+            projectTitle: project.title,
+            link: project.link,
+        });
+    };
+
     return (
         <div className='mb-12 last:mb-0 group'>
             <div className='flex flex-col md:flex-row md:items-baseline justify-between mb-3 gap-2'>
@@ -25,6 +35,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
                             href={project.link}
                             target='_blank'
                             rel='noreferrer'
+                            onClick={handleProjectLinkClick}
                             className='text-zinc-400 hover:text-zinc-900 transition-colors'
                         >
                             <ExternalLink size={16} />

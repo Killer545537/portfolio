@@ -36,6 +36,7 @@ export interface Experience {
     location: string;
     period: string;
     description: string[];
+    link?: string;
 }
 
 export interface Project {

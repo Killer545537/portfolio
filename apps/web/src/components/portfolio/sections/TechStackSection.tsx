@@ -1,7 +1,7 @@
 import { ChevronDown, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { TECH_STACK } from '@/lib/data';
-import { useTechExpanded } from '@/lib/portfolio-context';
+import { useTechExpanded, useTrack } from '@/lib/portfolio-context';
 import type { TechItem } from '@/lib/types';
 import { Section } from '../Section';
 
@@ -77,6 +77,13 @@ function ScrollingTechLogos() {
 
 function ExpandedTechView() {
     const { collapseTech } = useTechExpanded();
+    const track = useTrack();
+
+    const handleCollapse = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        track('tech_expand_click', { action: 'collapse' });
+        collapseTech();
+    };
 
     return (
         <div className='animate-in fade-in zoom-in-95 duration-300'>
@@ -87,10 +94,7 @@ function ExpandedTechView() {
                 <Button
                     variant='ghost'
                     size='icon-sm'
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        collapseTech();
-                    }}
+                    onClick={handleCollapse}
                     title='Collapse'
                 >
                     <Minimize2 size={16} />
@@ -115,9 +119,11 @@ function ExpandedTechView() {
 
 export function TechStackSection() {
     const { isTechExpanded, expandTech } = useTechExpanded();
+    const track = useTrack();
 
     const handleExpand = () => {
         if (!isTechExpanded) {
+            track('tech_expand_click', { action: 'expand' });
             expandTech();
         }
     };
@@ -152,7 +158,7 @@ export function TechStackSection() {
                 {/* View Full Stack Button */}
                 {!isTechExpanded && (
                     <button
-                        onClick={expandTech}
+                        onClick={handleExpand}
                         className='self-center flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold text-zinc-400 hover:text-zinc-900 transition-colors py-2'
                     >
                         <span>View Full Stack</span>
