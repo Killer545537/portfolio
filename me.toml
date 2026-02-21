@@ -7,13 +7,17 @@ name = "Srijan Mahajan"
 phonetic = "/ˈsriːdʒən məˈhɑːdʒən/"
 title = "Full-Stack & Systems Developer"
 location = "India"
+avatar = "https://ui-avatars.com/api/?name=Srijan+Mahajan&background=18181b&color=fff&size=200"
 
 [profile.contact]
 phone = "+91-8178863697"
 email = "srajanmahajan1@gmail.com"
-linkedin = "LinkedIn"
+linkedin = "https://www.linkedin.com/in/srijan-mahajan-035680294/"
+github = "https://github.com/Killer545537"
+twitter = "https://x.com/killa_545537"
 
-profile.bio = [
+[profile.bio]
+lines = [
   "Full-stack developer with 2+ years of experience building high-performance systems using Rust and TypeScript.",
   "Focused on API design, authentication protocols, distributed systems, and real-time applications.",
   "Strong background in containerization, CI/CD pipelines, and scalable cloud deployments."
@@ -30,12 +34,12 @@ period = "2023 - Present"
 location = "India"
 
 [[education]]
-institution = "The Indian Heights School, Dwarka"
+institution = "The Indian Heights School"
 degree = "Class XII"
 period = "2022 - 2023"
 
 [[education]]
-institution = "The Indian Heights School, Dwarka"
+institution = "The Indian Heights School"
 degree = "Class X"
 period = "2020 - 2021"
 
@@ -55,18 +59,16 @@ detail = "Top 300 rank"
 # Experience
 # =========================
 
-
 [[experience]]
 role = "Backend Developer Intern"
 organization = "LogiXJunction"
 location = "India"
-period = "2023"
-
+period = "Jun 2025 - Dec 2025"
 description = [
   "Early engineering member at a college-based startup, responsible for building the core backend from the ground up.",
   "Developed RESTful APIs using JavaScript and Express.",
   "Designed and implemented core business logic and backend workflows.",
-  "Contributed to system architecture decisions during initial product development phase."
+  "Contributed to backend architecture during initial product development phase."
 ]
 
 [[experience]]
@@ -74,7 +76,6 @@ role = "Executive Committee Member"
 organization = "Axiom – Philosophical Society, NSUT"
 location = "India"
 period = "Jan 2023"
-
 description = [
   "Organized 12 large-scale events with 1,200+ total attendees.",
   "Increased social media engagement by 40% within 6 months."
@@ -88,7 +89,6 @@ description = [
 title = "Local Chat Server"
 category = "Distributed Systems / Real-Time"
 tech = ["Rust", "WebSockets", "JWT", "OAuth2", "PostgreSQL"]
-
 highlights = [
   "Built LAN-based chat system handling 20 concurrent users and 10,000+ messages/day.",
   "Implemented JWT and OAuth2 authentication flows reducing auth errors by 95%.",
@@ -96,10 +96,20 @@ highlights = [
 ]
 
 [[projects]]
+title = "Captions Extractor"
+category = "Desktop Application / Systems Integration"
+tech = ["Rust", "Tauri", "React", "yt-dlp"]
+highlights = [
+  "Built a cross-platform desktop application using Tauri (Rust backend + React frontend).",
+  "Integrated yt-dlp for automated caption extraction from YouTube videos.",
+  "Implemented local-first processing where users provide their own Groq API key for caption cleaning.",
+  "Ensured all operations run locally, with no centralized backend, preserving user privacy and minimizing latency."
+]
+
+[[projects]]
 title = "Droply"
 category = "Cloud Systems"
 tech = ["TypeScript", "Next.js", "AWS", "S3", "ImageKit CDN"]
-
 highlights = [
   "Google Drive–like file storage system supporting 500+ daily uploads.",
   "Maintained 99.9% uptime.",
@@ -110,7 +120,6 @@ highlights = [
 title = "Expression Parser (Crate)"
 category = "Compiler / Systems"
 tech = ["Rust", "Macros"]
-
 highlights = [
   "Published on crates.io with 150+ downloads and 30+ GitHub stars.",
   "Implemented compile-time validation eliminating runtime parse errors."
@@ -119,28 +128,16 @@ highlights = [
 [[projects]]
 title = "Advent of Code 2025"
 category = "Algorithms"
-
+tech = []
 highlights = [
   "Solved all 12 problems.",
   "Optimized solutions improving runtime by 20% on average."
 ]
 
 [[projects]]
-title = "Captions Extractor"
-category = "Desktop Application / Systems Integration"
-tech = ["Rust", "Tauri", "React", "yt-dlp", "Groq API"]
-
-highlights = [
-  "Built a cross-platform desktop application using Tauri (Rust backend + React frontend).",
-  "Integrated yt-dlp for automated caption extraction from YouTube videos.",
-  "Implemented local-first processing where users provide their own Groq API key for caption cleaning.",
-  "Ensured all operations run locally, with no centralized backend, preserving user privacy and minimizing latency."
-]
-
-[[projects]]
 title = "Real-Time Chat with SQLX"
 category = "Technical Writing"
-
+tech = []
 highlights = [
   "Published Medium article with 1,200+ monthly views and 80+ claps."
 ]
@@ -151,44 +148,81 @@ highlights = [
 
 [techStack]
 
-languages = [
-  "Rust",
-  "TypeScript",
-  "Python",
-  "C",
-  "C++",
-  "Haskell",
-  "Java"
-]
+[[techStack.languages]]
+name = "Rust"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg"
 
-backend = [
-  "REST",
-  "GraphQL",
-  "Node.js",
-  "Flask",
-  "JWT",
-  "OAuth2",
-  "Middleware"
-]
+[[techStack.languages]]
+name = "TypeScript"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/typescript/typescript-original.svg"
 
-databases = [
-  "PostgreSQL",
-  "Redis"
-]
+[[techStack.languages]]
+name = "Python"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/python/python-original.svg"
 
-cloudDevOps = [
-  "AWS",
-  "EC2",
-  "S3",
-  "Docker",
-  "GitHub Actions",
-  "CI/CD"
-]
+[[techStack.languages]]
+name = "C"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/c/c-original.svg"
 
-frontend = [
-  "Next.js",
-  "React"
-]
+[[techStack.languages]]
+name = "C++"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/cplusplus/cplusplus-original.svg"
+
+[[techStack.languages]]
+name = "Haskell"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/haskell/haskell-original.svg"
+
+[[techStack.languages]]
+name = "Java"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg"
+
+[[techStack.backend]]
+name = "Node.js"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nodejs/nodejs-original.svg"
+
+[[techStack.backend]]
+name = "Flask"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/flask/flask-original.svg"
+
+[[techStack.backend]]
+name = "GraphQL"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/graphql/graphql-plain.svg"
+
+[[techStack.backend]]
+name = "JWT"
+icon = ""
+
+[[techStack.backend]]
+name = "OAuth2"
+icon = ""
+
+[[techStack.databases]]
+name = "PostgreSQL"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/postgresql/postgresql-original.svg"
+
+[[techStack.databases]]
+name = "Redis"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/redis/redis-original.svg"
+
+[[techStack.cloudDevOps]]
+name = "AWS"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-original-wordmark.svg"
+
+[[techStack.cloudDevOps]]
+name = "Docker"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg"
+
+[[techStack.cloudDevOps]]
+name = "GitHub Actions"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/github/github-original.svg"
+
+[[techStack.frontend]]
+name = "Next.js"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nextjs/nextjs-original.svg"
+
+[[techStack.frontend]]
+name = "React"
+icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/react/react-original.svg"
 
 # =========================
 # Languages Spoken
@@ -206,7 +240,8 @@ proficiency = "Native"
 # Interests
 # =========================
 
-interests = [
+[interests]
+list = [
   "Systems Programming",
   "Distributed Systems",
   "Authentication Protocols",

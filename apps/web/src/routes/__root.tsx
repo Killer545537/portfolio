@@ -1,6 +1,7 @@
 import { TanStackDevtools } from '@tanstack/react-devtools';
 import { createRootRoute, HeadContent, Scripts } from '@tanstack/react-router';
 import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
+import { TooltipProvider } from '@/components/ui/tooltip';
 
 import appCss from '../styles.css?url';
 
@@ -14,9 +15,7 @@ export const Route = createRootRoute({
                 name: 'viewport',
                 content: 'width=device-width, initial-scale=1',
             },
-            {
-                title: 'TanStack Start Starter',
-            },
+            { title: 'Portfolio' },
         ],
         links: [
             {
@@ -36,7 +35,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <HeadContent />
             </head>
             <body>
-                {children}
+                <TooltipProvider>{children}</TooltipProvider>
                 <TanStackDevtools
                     config={{
                         position: 'bottom-right',

@@ -6,6 +6,7 @@ import viteReact from '@vitejs/plugin-react';
 import { nitro } from 'nitro/vite';
 import { defineConfig } from 'vite';
 import viteTsConfigPaths from 'vite-tsconfig-paths';
+import { tomlPlugin } from './vite-plugin-toml';
 
 const config = defineConfig({
     resolve: {
@@ -13,8 +14,13 @@ const config = defineConfig({
             '@': fileURLToPath(new URL('./src', import.meta.url)),
         },
     },
+    server: {
+        port: Number(process.env.PORT) || 3000,
+        host: '0.0.0.0',
+    },
     plugins: [
         devtools(),
+        tomlPlugin(),
         nitro({
             vercel: {
                 functions: {
