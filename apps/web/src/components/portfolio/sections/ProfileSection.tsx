@@ -64,8 +64,8 @@ function ProfileHeader() {
             </p>
 
             <div className='text-base text-zinc-600 leading-relaxed font-light space-y-4'>
-                {PROFILE.bio.lines.map((paragraph, idx) => (
-                    <p key={idx}>{paragraph}</p>
+                {PROFILE.bio.lines.map((paragraph) => (
+                    <p key={paragraph}>{paragraph}</p>
                 ))}
             </div>
         </div>
@@ -92,9 +92,9 @@ function InterestsSection() {
                 Interests
             </h3>
             <div className='flex flex-wrap gap-2'>
-                {INTERESTS.map((interest, idx) => (
+                {INTERESTS.map((interest) => (
                     <Badge
-                        key={idx}
+                        key={interest}
                         variant='secondary'
                         className='text-xs bg-zinc-100 text-zinc-500 border border-zinc-200'
                     >

@@ -1,4 +1,4 @@
-export interface Contact {
+interface Contact {
     phone: string;
     email: string;
     linkedin: string;

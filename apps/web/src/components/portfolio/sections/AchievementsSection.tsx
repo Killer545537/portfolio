@@ -6,9 +6,9 @@ export function AchievementsSection() {
     return (
         <Section title='ACHIEVEMENTS' id='achievements' className='py-0'>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-                {ACHIEVEMENTS.map((achievement, idx) => (
+                {ACHIEVEMENTS.map((achievement) => (
                     <AchievementCard
-                        key={idx}
+                        key={achievement.title}
                         title={achievement.title}
                         detail={achievement.detail}
                     />

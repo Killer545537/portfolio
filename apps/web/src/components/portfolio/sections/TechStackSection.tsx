@@ -12,9 +12,9 @@ function TechCategory({ title, items }: { title: string; items: TechItem[] }) {
                 {title}
             </h4>
             <div className='flex flex-wrap gap-3'>
-                {items.map((item, idx) => (
+                {items.map((item) => (
                     <div
-                        key={idx}
+                        key={item.name}
                         className='flex items-center gap-2 bg-zinc-50 border border-zinc-100 rounded-md px-2.5 py-1.5 hover:border-zinc-300 transition-colors'
                     >
                         {item.icon ? (
@@ -45,8 +45,6 @@ function ScrollingTechLogos() {
         ...TECH_STACK.frontend,
     ].filter((item) => item.icon);
 
-    const scrollingTechItems = [...allTechItems, ...allTechItems];
-
     return (
         <div className='flex flex-col'>
             <div className='relative w-full overflow-hidden py-8'>
@@ -56,9 +54,22 @@ function ScrollingTechLogos() {
 
                 {/* The scrolling container */}
                 <div className='flex gap-12 animate-scroll w-max items-center pl-4 py-2'>
-                    {scrollingTechItems.map((item, idx) => (
+                    {allTechItems.map((item) => (
                         <div
-                            key={`${idx}-${item.name}`}
+                            key={item.name}
+                            className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
+                            title={item.name}
+                        >
+                            <img
+                                src={item.icon}
+                                alt={item.name}
+                                className='w-8 h-8 md:w-10 md:h-10 object-contain'
+                            />
+                        </div>
+                    ))}
+                    {allTechItems.map((item) => (
+                        <div
+                            key={`${item.name}-2`}
                             className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
                             title={item.name}
                         >

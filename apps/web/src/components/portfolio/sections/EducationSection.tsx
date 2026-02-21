@@ -4,9 +4,9 @@ import { Section } from '../Section';
 export function EducationSection() {
     return (
         <Section title='EDUCATION' className='py-0'>
-            {EDUCATION.map((edu, idx) => (
+            {EDUCATION.map((edu) => (
                 <div
-                    key={idx}
+                    key={edu.institution}
                     className='mb-6 last:mb-0 border-b border-zinc-50 pb-6 last:border-0 last:pb-0'
                 >
                     <div className='flex flex-col sm:flex-row justify-between sm:items-baseline mb-1'>

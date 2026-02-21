@@ -9,8 +9,8 @@ export function ExperienceSection() {
             id='experience'
             className='py-0'
         >
-            {EXPERIENCES.map((exp, idx) => (
-                <ExperienceItem key={idx} exp={exp} />
+            {EXPERIENCES.map((exp) => (
+                <ExperienceItem key={exp.organization} exp={exp} />
             ))}
         </Section>
     );

@@ -64,9 +64,9 @@ export function ExperienceItem({ exp }: ExperienceItemProps) {
                 className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-125 opacity-100' : 'max-h-0 opacity-0'}`}
             >
                 <ul className='space-y-2'>
-                    {exp.description.map((desc, idx) => (
+                    {exp.description.map((desc) => (
                         <li
-                            key={idx}
+                            key={desc}
                             className='text-base text-zinc-600 leading-relaxed font-light flex items-start gap-2'
                         >
                             <span className='block w-1 h-1 rounded-full bg-zinc-300 mt-2.5 shrink-0' />

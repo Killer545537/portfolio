@@ -1,33 +1,29 @@
 import { createServerFn } from '@tanstack/react-start';
 import { Resend } from 'resend';
+import { type } from 'arktype';
 
 import { db } from '@/db';
 import { contacts } from '@/db/schema';
 import { PortfolioConnectionEmail } from '@/emails/PortfolioConnectionEmail';
 
-interface ContactInput {
-    name: string;
-    email: string;
-}
+export const ContactInput = type({
+    name: 'string > 0',
+    email: 'string.email',
+});
+
+export type ContactInput = typeof ContactInput.infer;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export const submitContact = createServerFn({ method: 'POST' })
-    .inputValidator((input: ContactInput): ContactInput => {
-        if (!input.name || input.name.trim().length === 0) {
-            throw new Error('Name is required');
-        }
-        if (!input.email || input.email.trim().length === 0) {
-            throw new Error('Email is required');
-        }
-        // Basic email validation
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(input.email)) {
-            throw new Error('Invalid email format');
+    .inputValidator((input) => {
+        const result = ContactInput(input);
+        if (result instanceof type.errors) {
+            throw new Error(result.summary);
         }
         return {
-            name: input.name.trim(),
-            email: input.email.trim(),
+            name: result.name.trim(),
+            email: result.email.trim(),
         };
     })
     .handler(async ({ data }: { data: ContactInput }) => {

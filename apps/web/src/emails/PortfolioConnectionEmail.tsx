@@ -69,5 +69,3 @@ export function PortfolioConnectionEmail({
 PortfolioConnectionEmail.PreviewProps = {
     name: '{{name}}',
 };
-
-export default PortfolioConnectionEmail;

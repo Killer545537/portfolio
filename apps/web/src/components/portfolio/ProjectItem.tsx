@@ -46,9 +46,9 @@ export function ProjectItem({ project }: ProjectItemProps) {
 
             {project.tech && project.tech.length > 0 && (
                 <div className='flex flex-wrap gap-2 mb-4'>
-                    {project.tech.map((t, i) => (
+                    {project.tech.map((t) => (
                         <span
-                            key={i}
+                            key={t}
                             className='text-xs text-zinc-500 font-mono bg-zinc-100/80 px-1.5 py-0.5 rounded'
                         >
                             {t}
@@ -58,9 +58,9 @@ export function ProjectItem({ project }: ProjectItemProps) {
             )}
 
             <ul className='space-y-2 mt-4 border-l-2 border-zinc-100 pl-4'>
-                {project.highlights.map((highlight, idx) => (
+                {project.highlights.map((highlight) => (
                     <li
-                        key={idx}
+                        key={highlight}
                         className='text-base text-zinc-600 leading-relaxed font-light'
                     >
                         {highlight}

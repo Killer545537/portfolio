@@ -5,6 +5,7 @@ import {
     useContext,
     useEffect,
     useMemo,
+    useReducer,
     useState,
 } from 'react';
 
@@ -26,6 +27,70 @@ function getSessionId(): string {
         sessionStorage.setItem('analytics_session_id', sessionId);
     }
     return sessionId;
+}
+
+// State types
+interface PortfolioState {
+    isMarkdownMode: boolean;
+    showQRCode: boolean;
+    showContactModal: boolean;
+    isTechExpanded: boolean;
+}
+
+// Action types
+type PortfolioAction =
+    | { type: 'SET_MARKDOWN_MODE'; payload: boolean }
+    | { type: 'TOGGLE_MARKDOWN_MODE' }
+    | { type: 'SET_QR_CODE'; payload: boolean }
+    | { type: 'OPEN_QR_CODE' }
+    | { type: 'CLOSE_QR_CODE' }
+    | { type: 'SET_CONTACT_MODAL'; payload: boolean }
+    | { type: 'OPEN_CONTACT_MODAL' }
+    | { type: 'CLOSE_CONTACT_MODAL' }
+    | { type: 'SET_TECH_EXPANDED'; payload: boolean }
+    | { type: 'TOGGLE_TECH_EXPANDED' }
+    | { type: 'EXPAND_TECH' }
+    | { type: 'COLLAPSE_TECH' };
+
+const initialState: PortfolioState = {
+    isMarkdownMode: false,
+    showQRCode: false,
+    showContactModal: false,
+    isTechExpanded: false,
+};
+
+function portfolioReducer(
+    state: PortfolioState,
+    action: PortfolioAction,
+): PortfolioState {
+    switch (action.type) {
+        case 'SET_MARKDOWN_MODE':
+            return { ...state, isMarkdownMode: action.payload };
+        case 'TOGGLE_MARKDOWN_MODE':
+            return { ...state, isMarkdownMode: !state.isMarkdownMode };
+        case 'SET_QR_CODE':
+            return { ...state, showQRCode: action.payload };
+        case 'OPEN_QR_CODE':
+            return { ...state, showQRCode: true };
+        case 'CLOSE_QR_CODE':
+            return { ...state, showQRCode: false };
+        case 'SET_CONTACT_MODAL':
+            return { ...state, showContactModal: action.payload };
+        case 'OPEN_CONTACT_MODAL':
+            return { ...state, showContactModal: true };
+        case 'CLOSE_CONTACT_MODAL':
+            return { ...state, showContactModal: false };
+        case 'SET_TECH_EXPANDED':
+            return { ...state, isTechExpanded: action.payload };
+        case 'TOGGLE_TECH_EXPANDED':
+            return { ...state, isTechExpanded: !state.isTechExpanded };
+        case 'EXPAND_TECH':
+            return { ...state, isTechExpanded: true };
+        case 'COLLAPSE_TECH':
+            return { ...state, isTechExpanded: false };
+        default:
+            return state;
+    }
 }
 
 interface PortfolioContextValue {
@@ -72,28 +137,16 @@ interface PortfolioProviderProps {
 const LG_BREAKPOINT = 1024;
 
 export function PortfolioProvider({ children }: PortfolioProviderProps) {
-    // Scroll progress state
+    // Use reducer for related UI state
+    const [state, dispatch] = useReducer(portfolioReducer, initialState);
+
+    // Scroll progress state (separate since it updates frequently)
     const [scrollProgress, setScrollProgress] = useState(0);
 
     // Viewport state - default to false for SSR
     const [isDesktop, setIsDesktop] = useState(false);
 
-    // View mode states
-    const [isMarkdownMode, setIsMarkdownMode] = useState(false);
-
-    // Modal states
-    const [showQRCode, setShowQRCode] = useState(false);
-    const [showContactModal, setShowContactModal] = useState(false);
-
-    // Tech stack expansion state
-    const [isTechExpanded, setIsTechExpanded] = useState(false);
-
-    // Analytics session
-    const [sessionId, setSessionId] = useState<string>('');
-
-    useEffect(() => {
-        setSessionId(getSessionId());
-    }, []);
+    const [sessionId] = useState<string>(() => getSessionId());
 
     const track = useCallback(
         (eventType: EventType, metadata?: Record<string, unknown>) => {
@@ -151,28 +204,32 @@ export function PortfolioProvider({ children }: PortfolioProviderProps) {
             isDesktop,
 
             // Markdown mode
-            isMarkdownMode,
-            setIsMarkdownMode,
-            toggleMarkdownMode: () => setIsMarkdownMode((prev) => !prev),
+            isMarkdownMode: state.isMarkdownMode,
+            setIsMarkdownMode: (value: boolean) =>
+                dispatch({ type: 'SET_MARKDOWN_MODE', payload: value }),
+            toggleMarkdownMode: () => dispatch({ type: 'TOGGLE_MARKDOWN_MODE' }),
 
             // QR Code modal
-            showQRCode,
-            setShowQRCode,
-            openQRCode: () => setShowQRCode(true),
-            closeQRCode: () => setShowQRCode(false),
+            showQRCode: state.showQRCode,
+            setShowQRCode: (value: boolean) =>
+                dispatch({ type: 'SET_QR_CODE', payload: value }),
+            openQRCode: () => dispatch({ type: 'OPEN_QR_CODE' }),
+            closeQRCode: () => dispatch({ type: 'CLOSE_QR_CODE' }),
 
             // Contact modal
-            showContactModal,
-            setShowContactModal,
-            openContactModal: () => setShowContactModal(true),
-            closeContactModal: () => setShowContactModal(false),
+            showContactModal: state.showContactModal,
+            setShowContactModal: (value: boolean) =>
+                dispatch({ type: 'SET_CONTACT_MODAL', payload: value }),
+            openContactModal: () => dispatch({ type: 'OPEN_CONTACT_MODAL' }),
+            closeContactModal: () => dispatch({ type: 'CLOSE_CONTACT_MODAL' }),
 
             // Tech stack expansion
-            isTechExpanded,
-            setIsTechExpanded,
-            toggleTechExpanded: () => setIsTechExpanded((prev) => !prev),
-            expandTech: () => setIsTechExpanded(true),
-            collapseTech: () => setIsTechExpanded(false),
+            isTechExpanded: state.isTechExpanded,
+            setIsTechExpanded: (value: boolean) =>
+                dispatch({ type: 'SET_TECH_EXPANDED', payload: value }),
+            toggleTechExpanded: () => dispatch({ type: 'TOGGLE_TECH_EXPANDED' }),
+            expandTech: () => dispatch({ type: 'EXPAND_TECH' }),
+            collapseTech: () => dispatch({ type: 'COLLAPSE_TECH' }),
 
             // Analytics
             track,
@@ -180,10 +237,10 @@ export function PortfolioProvider({ children }: PortfolioProviderProps) {
         [
             scrollProgress,
             isDesktop,
-            isMarkdownMode,
-            showQRCode,
-            showContactModal,
-            isTechExpanded,
+            state.isMarkdownMode,
+            state.showQRCode,
+            state.showContactModal,
+            state.isTechExpanded,
             track,
         ],
     );
@@ -195,7 +252,7 @@ export function PortfolioProvider({ children }: PortfolioProviderProps) {
     );
 }
 
-export function usePortfolio(): PortfolioContextValue {
+function usePortfolioContext(): PortfolioContextValue {
     const context = useContext(PortfolioContext);
 
     if (!context) {
@@ -207,24 +264,24 @@ export function usePortfolio(): PortfolioContextValue {
 
 // Optional: Export individual hooks for specific slices of state
 export function useScrollProgress(): number {
-    const { scrollProgress } = usePortfolio();
+    const { scrollProgress } = usePortfolioContext();
     return scrollProgress;
 }
 
 export function useIsDesktop(): boolean {
-    const { isDesktop } = usePortfolio();
+    const { isDesktop } = usePortfolioContext();
     return isDesktop;
 }
 
 export function useMarkdownMode() {
     const { isMarkdownMode, setIsMarkdownMode, toggleMarkdownMode } =
-        usePortfolio();
+        usePortfolioContext();
     return { isMarkdownMode, setIsMarkdownMode, toggleMarkdownMode };
 }
 
 export function useQRCodeModal() {
     const { showQRCode, setShowQRCode, openQRCode, closeQRCode } =
-        usePortfolio();
+        usePortfolioContext();
     return { showQRCode, setShowQRCode, openQRCode, closeQRCode };
 }
 
@@ -234,7 +291,7 @@ export function useContactModal() {
         setShowContactModal,
         openContactModal,
         closeContactModal,
-    } = usePortfolio();
+    } = usePortfolioContext();
     return {
         showContactModal,
         setShowContactModal,
@@ -250,7 +307,7 @@ export function useTechExpanded() {
         toggleTechExpanded,
         expandTech,
         collapseTech,
-    } = usePortfolio();
+    } = usePortfolioContext();
     return {
         isTechExpanded,
         setIsTechExpanded,
@@ -261,6 +318,6 @@ export function useTechExpanded() {
 }
 
 export function useTrack() {
-    const { track } = usePortfolio();
+    const { track } = usePortfolioContext();
     return track;
 }
