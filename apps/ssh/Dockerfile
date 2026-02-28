@@ -1,40 +1,41 @@
 # Dockerfile for Rust SSH Server
 # Build context should be set to the repository root
-# Uses musl for static binary to avoid GLIBC version issues
 
 # ==========================================
-# Stage 1: Build the Rust SSH server
+# Stage 1: cargo-chef planner
 # ==========================================
-FROM rust:1.88-alpine AS builder
-
-# Install musl-dev and other build dependencies
+FROM rust:alpine AS chef
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
-
+RUN cargo install cargo-chef
 WORKDIR /app
 
-# Copy workspace files
+FROM chef AS planner
 COPY Cargo.toml Cargo.lock ./
 COPY apps/ssh ./apps/ssh
+RUN cargo chef prepare --recipe-path recipe.json
 
-# Build the SSH server in release mode with musl target
+# ==========================================
+# Stage 2: Cache dependencies
+# ==========================================
+FROM chef AS builder
+COPY --from=planner /app/recipe.json recipe.json
 ENV OPENSSL_STATIC=1
+# This layer is cached as long as Cargo.toml/Cargo.lock don't change
+RUN cargo chef cook --release --recipe-path recipe.json
+
+# Now copy source and build only your code
+COPY Cargo.toml Cargo.lock ./
+COPY apps/ssh ./apps/ssh
 RUN cargo build --release --package ssh
 
 # ==========================================
-# Stage 2: Runtime
+# Stage 3: Runtime
 # ==========================================
-FROM alpine:3.20 AS runtime
+FROM alpine:latest AS runtime
 
-# Install necessary runtime dependencies
 RUN apk add --no-cache ca-certificates
-
 WORKDIR /app
-
-# Copy the built binary
 COPY --from=builder /app/target/release/ssh /app/ssh-server
 
-# Expose SSH port
 EXPOSE 2222
-
-# Run the SSH server
 CMD ["/app/ssh-server"]
