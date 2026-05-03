@@ -9,6 +9,7 @@ import viteTsConfigPaths from 'vite-tsconfig-paths';
 import { tomlPlugin } from './vite-plugin-toml';
 
 const config = defineConfig({
+    envDir: '../../',
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url)),

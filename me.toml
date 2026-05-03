@@ -7,7 +7,7 @@ name = "Srijan Mahajan"
 phonetic = "/ˈsriːdʒən məˈhɑːdʒən/"
 title = "Full-Stack & Systems Developer"
 location = "India"
-avatar = "https://ui-avatars.com/api/?name=Srijan+Mahajan&background=18181b&color=fff&size=200"
+avatar = "/profile-photo.jpg"
 
 [profile.contact]
 phone = "+91-8178863697"
@@ -144,7 +144,6 @@ highlights = [
 # =========================
 
 [techStack]
-
 [[techStack.languages]]
 name = "Rust"
 icon = "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/rust/rust-original.svg"
