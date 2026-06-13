@@ -28,6 +28,13 @@ const config = defineConfig({
                     runtime: 'bun1.x',
                 },
             },
+            routeRules: {
+                '/profile-photo.jpg': {
+                    headers: {
+                        'cache-control': 'public, max-age=86400',
+                    },
+                },
+            },
         }),
         // this is the plugin that enables path aliases
         viteTsConfigPaths({
