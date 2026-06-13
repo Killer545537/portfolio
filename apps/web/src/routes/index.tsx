@@ -8,6 +8,7 @@ import {
     ProfileSection,
     QRCodeModal,
 } from '@/components/portfolio';
+import { getGitHubContributions } from '@/lib/github-contributions';
 import { PortfolioProvider, useMarkdownMode } from '@/lib/portfolio-context';
 
 export const Route = createFileRoute('/')({
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/')({
             },
         ],
     }),
+    loader: () => getGitHubContributions(),
     component: PortfolioPage,
 });
 
