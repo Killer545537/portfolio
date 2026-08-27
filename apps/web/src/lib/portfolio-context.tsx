@@ -207,7 +207,8 @@ export function PortfolioProvider({ children }: PortfolioProviderProps) {
             isMarkdownMode: state.isMarkdownMode,
             setIsMarkdownMode: (value: boolean) =>
                 dispatch({ type: 'SET_MARKDOWN_MODE', payload: value }),
-            toggleMarkdownMode: () => dispatch({ type: 'TOGGLE_MARKDOWN_MODE' }),
+            toggleMarkdownMode: () =>
+                dispatch({ type: 'TOGGLE_MARKDOWN_MODE' }),
 
             // QR Code modal
             showQRCode: state.showQRCode,
@@ -227,7 +228,8 @@ export function PortfolioProvider({ children }: PortfolioProviderProps) {
             isTechExpanded: state.isTechExpanded,
             setIsTechExpanded: (value: boolean) =>
                 dispatch({ type: 'SET_TECH_EXPANDED', payload: value }),
-            toggleTechExpanded: () => dispatch({ type: 'TOGGLE_TECH_EXPANDED' }),
+            toggleTechExpanded: () =>
+                dispatch({ type: 'TOGGLE_TECH_EXPANDED' }),
             expandTech: () => dispatch({ type: 'EXPAND_TECH' }),
             collapseTech: () => dispatch({ type: 'COLLAPSE_TECH' }),
 

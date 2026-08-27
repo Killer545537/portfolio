@@ -1,5 +1,5 @@
 use anyhow::Result;
-use russh::keys::{Algorithm, PrivateKey, ssh_key::rand_core::OsRng};
+use russh::keys::{Algorithm, PrivateKey};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,7 +41,7 @@ impl ServerConfig {
             inactivity_timeout: Some(Duration::from_secs(self.inactivity_timeout_secs)),
             auth_rejection_time: Duration::from_secs(self.auth_rejection_time_secs),
             auth_rejection_time_initial: Some(Duration::from_secs(0)),
-            keys: vec![PrivateKey::random(&mut OsRng, Algorithm::Ed25519)?],
+            keys: vec![PrivateKey::random(&mut rand::rng(), Algorithm::Ed25519)?],
             ..Default::default()
         };
 

@@ -16,6 +16,9 @@ export function tomlPlugin(): Plugin {
             return {
                 code: `export default ${JSON.stringify(parsed, null, 2)};`,
                 map: null,
+                // Vite 8 (Rolldown) requires plugins that convert a non-JS
+                // module type to JavaScript to say so explicitly.
+                moduleType: 'js',
             };
         },
     };

@@ -2,8 +2,8 @@
 
 use anyhow::{Error, Result};
 use russh::{
-    Channel, ChannelId, CryptoVec, Pty,
-    server::{Auth, Msg, Session},
+    Channel, ChannelId, Pty,
+    server::{Auth, ChannelOpenHandle, Msg, Session},
 };
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::Mutex;
@@ -99,8 +99,7 @@ impl ClientHandler {
             .await;
 
         let welcome = ui::render_welcome_message();
-        let data = CryptoVec::from(welcome.as_bytes());
-        session.data(channel, data)?;
+        session.data(channel, welcome.into_bytes())?;
         // Send initial prompt
         self.send_prompt(channel, session)?;
         Ok(())
@@ -108,8 +107,7 @@ impl ClientHandler {
 
     /// Send a message to the client
     fn send_message(&self, channel: ChannelId, message: &str, session: &mut Session) -> Result<()> {
-        let data = CryptoVec::from(message.as_bytes());
-        session.data(channel, data)?;
+        session.data(channel, message.as_bytes().to_vec())?;
         Ok(())
     }
 
@@ -312,8 +310,9 @@ impl russh::server::Handler for ClientHandler {
     async fn channel_open_session(
         &mut self,
         channel: Channel<Msg>,
+        reply: ChannelOpenHandle,
         session: &mut Session,
-    ) -> Result<bool, Self::Error> {
+    ) -> Result<(), Self::Error> {
         let client_info = ClientInfo {
             channel_id: channel.id(),
             handle: session.handle(),
@@ -325,7 +324,10 @@ impl russh::server::Handler for ClientHandler {
         }
 
         println!("[{}] Session channel opened", self.id);
-        Ok(true)
+        // russh 0.63: the open request is rejected if this handle is dropped
+        // without accepting, so this replaces the old `Ok(true)` return.
+        reply.accept().await;
+        Ok(())
     }
 
     async fn auth_none(&mut self, user: &str) -> Result<Auth, Self::Error> {

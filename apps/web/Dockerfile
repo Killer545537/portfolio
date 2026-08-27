@@ -13,7 +13,9 @@ COPY apps/web/package.json apps/web/bun.lock ./apps/web/
 
 # Install dependencies
 WORKDIR /app/apps/web
-RUN bun install
+# --frozen-lockfile makes the build fail loudly on a stale bun.lock
+# instead of silently resolving different versions than the repo pins.
+RUN bun install --frozen-lockfile
 
 # Copy the rest of the web app source
 WORKDIR /app
@@ -31,13 +33,10 @@ RUN bun run build
 # ==========================================
 FROM oven/bun:1-debian AS runtime
 
-# Install necessary runtime dependencies
-RUN apt-get update && apt-get install -y \
-	ca-certificates \
-	curl \
-	&& rm -rf /var/lib/apt/lists/*
-
 WORKDIR /app
+
+# No apt layer needed: the base image already ships ca-certificates, and the
+# health check below uses bun itself rather than curl.
 
 # Copy the built web app
 COPY --from=builder /app/apps/web/.output ./.output
@@ -54,7 +53,7 @@ ENV PORT=3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-	CMD curl -f http://localhost:3000 || exit 1
+	CMD bun -e "const r = await fetch('http://localhost:'+(process.env.PORT ?? 3000)); process.exit(r.ok ? 0 : 1)"
 
 # Run the web server
 CMD ["bun", "run", ".output/server/index.mjs"]

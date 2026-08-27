@@ -4,9 +4,13 @@
 # ==========================================
 # Stage 1: cargo-chef planner
 # ==========================================
-FROM rust:alpine AS chef
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev openssl-libs-static
-RUN cargo install cargo-chef
+# Prebuilt cargo-chef image - avoids compiling cargo-chef from source on every
+# build the way `cargo install cargo-chef` did.
+FROM lukemathwalker/cargo-chef:latest-rust-alpine AS chef
+# musl-dev provides the C toolchain aws-lc-sys builds against. The project is
+# rustls-only (no openssl-sys anywhere in Cargo.lock), so the OpenSSL packages
+# and OPENSSL_STATIC that used to live here were dead weight.
+RUN apk add --no-cache musl-dev
 WORKDIR /app
 
 FROM chef AS planner
@@ -19,23 +23,30 @@ RUN cargo chef prepare --recipe-path recipe.json
 # ==========================================
 FROM chef AS builder
 COPY --from=planner /app/recipe.json recipe.json
-ENV OPENSSL_STATIC=1
 # This layer is cached as long as Cargo.toml/Cargo.lock don't change
 RUN cargo chef cook --release --recipe-path recipe.json
 
 # Now copy source and build only your code
 COPY Cargo.toml Cargo.lock ./
 COPY apps/ssh ./apps/ssh
-RUN cargo build --release --package ssh
+RUN cargo build --release --locked --package ssh
 
 # ==========================================
 # Stage 3: Runtime
 # ==========================================
-FROM alpine:latest AS runtime
+FROM alpine:3 AS runtime
 
 RUN apk add --no-cache ca-certificates
 WORKDIR /app
+
 COPY --from=builder /app/target/release/ssh /app/ssh-server
+# ui.rs reads me.toml at runtime and silently falls back to hardcoded content
+# when it is missing, so the image has to carry it.
+COPY me.toml /app/me.toml
+
+# Drop root: the server only reads files and binds 2222 (>1024).
+RUN adduser -D -H -u 10001 appuser
+USER appuser
 
 EXPOSE 2222
 CMD ["/app/ssh-server"]

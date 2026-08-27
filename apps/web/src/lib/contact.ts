@@ -1,8 +1,8 @@
 import { createServerFn } from '@tanstack/react-start';
-import { Resend } from 'resend';
 import { type } from 'arktype';
+import { Resend } from 'resend';
 
-import { db } from '@/db';
+import { getDb } from '@/db';
 import { contacts } from '@/db/schema';
 import { PortfolioConnectionEmail } from '@/emails/PortfolioConnectionEmail';
 
@@ -29,7 +29,7 @@ export const submitContact = createServerFn({ method: 'POST' })
     .handler(async ({ data }: { data: ContactInput }) => {
         try {
             // Store contact in database
-            await db
+            await getDb()
                 .insert(contacts)
                 .values({
                     email: data.email,
