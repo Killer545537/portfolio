@@ -24,7 +24,7 @@ portfolio/
 │   └── ssh/          # Rust SSH server
 ├── db/
 │   └── migrations/   # SQL migrations for PostgreSQL
-├── me.toml           # Unified profile data source
+├── me.toml           # Unified profile data source (content + email copy)
 ├── docker-compose.yml
 └── Cargo.toml        # Rust workspace configuration
 ```
@@ -39,7 +39,6 @@ portfolio/
 | **Runtime**    | [Bun](https://bun.sh)                                            |
 | **Routing**    | [TanStack Router](https://tanstack.com/router)                   |
 | **Styling**    | [Tailwind CSS v4](https://tailwindcss.com)                       |
-| **Forms**      | [TanStack Form](https://tanstack.com/form)                       |
 | **Validation** | [ArkType](https://arktype.io)                                    |
 | **Database**   | [Drizzle ORM](https://orm.drizzle.team) + PostgreSQL             |
 | **Email**      | [Resend](https://resend.com) + [React Email](https://react.email)|
@@ -63,7 +62,7 @@ portfolio/
 | Component      | Technology                                      |
 | -------------- | ----------------------------------------------- |
 | **Database**   | PostgreSQL                                      |
-| **Migrations** | Raw SQL migrations (managed via Drizzle Kit)    |
+| **Migrations** | Hand-written SQL in `db/migrations` (authoritative); `apps/web/src/db/schema.ts` mirrors it for query typing |
 | **Tables**     | `contacts`, `events`                            |
 
 ### Infrastructure
@@ -84,6 +83,7 @@ All portfolio content is defined in `me.toml`, a single source of truth used by 
 - Tech stack
 - Achievements
 - Contact details
+- Connection email copy (`[email]`), shared by the React and Rust renderers
 
 ## Features
 
@@ -93,7 +93,8 @@ All portfolio content is defined in `me.toml`, a single source of truth used by 
 - GitHub contribution heatmap integration
 - Contact form with email notifications
 - Event analytics tracking
-- Dark theme with modern UI components
+- Light theme with modern UI components
+- Scroll-driven profile transition, CSS-only
 
 ### SSH Server
 
@@ -117,4 +118,7 @@ Connect to the SSH server and use these commands:
 | `education`  | View education history             |
 | `contact`    | Get contact information            |
 | `connect`    | Submit your email to connect       |
-| `exit`       | Close the SSH session              |
+| `exit`, `q`  | Close the SSH session              |
+
+Most commands have short aliases: `h` (help), `exp` (experience), `proj`
+(projects), `edu` (education). `Ctrl+D` exits, `Ctrl+C` cancels the connect form.

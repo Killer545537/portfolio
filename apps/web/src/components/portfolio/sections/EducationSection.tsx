@@ -6,7 +6,7 @@ export function EducationSection() {
         <Section title='EDUCATION' className='py-0'>
             {EDUCATION.map((edu) => (
                 <div
-                    key={edu.institution}
+                    key={`${edu.institution}-${edu.degree}`}
                     className='mb-6 last:mb-0 border-b border-zinc-50 pb-6 last:border-0 last:pb-0'
                 >
                     <div className='flex flex-col sm:flex-row justify-between sm:items-baseline mb-1'>

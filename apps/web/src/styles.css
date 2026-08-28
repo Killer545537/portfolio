@@ -136,3 +136,77 @@ code {
     @apply bg-background text-foreground;
   }
 }
+
+/* ==========================================================================
+   Portfolio: marquee, scrollbar hiding, and scroll-driven profile transition.
+
+   These rules used to be injected from a <style> tag by a GlobalStyles React
+   component that re-rendered on every markdown-mode toggle.
+   ========================================================================== */
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-scroll {
+  animation: scroll 40s linear infinite;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/*
+  --scroll-progress (0 -> 1) is written to <html> by a rAF-throttled listener in
+  portfolio-context.tsx. Keeping the value out of React state means scrolling
+  repaints these two elements instead of re-rendering the whole section tree.
+*/
+:root {
+  --scroll-progress: 0;
+}
+
+.profile-column {
+  opacity: calc(1 - var(--scroll-progress) * 1.5);
+  filter: blur(calc(var(--scroll-progress) * 8px));
+  transform: translateX(calc(var(--scroll-progress) * -60px));
+}
+
+:root[data-scrolled-past] .profile-column {
+  pointer-events: none;
+}
+
+/*
+  The main column only slides on large screens. Expressing that as a media query
+  rather than a JS `isDesktop` flag also removes the hydration flash the old
+  SSR-defaults-to-false approach produced.
+*/
+@media (min-width: 1024px) {
+  .main-column {
+    transform: translateX(calc(var(--scroll-progress) * -20vw));
+    width: calc(100% + var(--scroll-progress) * 15vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll {
+    animation: none;
+  }
+
+  .profile-column,
+  .main-column {
+    opacity: 1;
+    filter: none;
+    transform: none;
+    width: auto;
+  }
+}

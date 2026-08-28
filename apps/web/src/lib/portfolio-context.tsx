@@ -5,16 +5,11 @@ import {
     useContext,
     useEffect,
     useMemo,
-    useReducer,
     useState,
 } from 'react';
 
 import type { EventType } from './analytics';
 import { trackEvent } from './analytics';
-
-function generateSessionId(): string {
-    return `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
-}
 
 function getSessionId(): string {
     if (typeof window === 'undefined') {
@@ -23,226 +18,134 @@ function getSessionId(): string {
 
     let sessionId = sessionStorage.getItem('analytics_session_id');
     if (!sessionId) {
-        sessionId = generateSessionId();
+        sessionId = `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
         sessionStorage.setItem('analytics_session_id', sessionId);
     }
     return sessionId;
 }
 
-// State types
-interface PortfolioState {
-    isMarkdownMode: boolean;
-    showQRCode: boolean;
-    showContactModal: boolean;
-    isTechExpanded: boolean;
-}
+/**
+ * Scroll progress drives opacity/blur/translate on the profile column. It used
+ * to be React state updated on every scroll event, which re-rendered every
+ * section at scroll frequency for values only CSS ever consumed. It now lives
+ * in a custom property on <html>, written from a rAF-throttled listener.
+ *
+ * `--scroll-progress` goes 0 -> 1 over the first SCROLL_RANGE pixels.
+ * `data-scrolled-past` mirrors the point where the profile column stops
+ * accepting pointer events, which has no pure-CSS equivalent.
+ */
+const SCROLL_RANGE = 400;
+const POINTER_EVENTS_CUTOFF = 0.8;
 
-// Action types
-type PortfolioAction =
-    | { type: 'SET_MARKDOWN_MODE'; payload: boolean }
-    | { type: 'TOGGLE_MARKDOWN_MODE' }
-    | { type: 'SET_QR_CODE'; payload: boolean }
-    | { type: 'OPEN_QR_CODE' }
-    | { type: 'CLOSE_QR_CODE' }
-    | { type: 'SET_CONTACT_MODAL'; payload: boolean }
-    | { type: 'OPEN_CONTACT_MODAL' }
-    | { type: 'CLOSE_CONTACT_MODAL' }
-    | { type: 'SET_TECH_EXPANDED'; payload: boolean }
-    | { type: 'TOGGLE_TECH_EXPANDED' }
-    | { type: 'EXPAND_TECH' }
-    | { type: 'COLLAPSE_TECH' };
+function useScrollProgressProperty(): void {
+    useEffect(() => {
+        const root = document.documentElement;
+        let frame = 0;
 
-const initialState: PortfolioState = {
-    isMarkdownMode: false,
-    showQRCode: false,
-    showContactModal: false,
-    isTechExpanded: false,
-};
+        const apply = () => {
+            frame = 0;
+            const progress = Math.min(window.scrollY / SCROLL_RANGE, 1);
+            root.style.setProperty('--scroll-progress', String(progress));
+            root.toggleAttribute(
+                'data-scrolled-past',
+                progress > POINTER_EVENTS_CUTOFF,
+            );
+        };
 
-function portfolioReducer(
-    state: PortfolioState,
-    action: PortfolioAction,
-): PortfolioState {
-    switch (action.type) {
-        case 'SET_MARKDOWN_MODE':
-            return { ...state, isMarkdownMode: action.payload };
-        case 'TOGGLE_MARKDOWN_MODE':
-            return { ...state, isMarkdownMode: !state.isMarkdownMode };
-        case 'SET_QR_CODE':
-            return { ...state, showQRCode: action.payload };
-        case 'OPEN_QR_CODE':
-            return { ...state, showQRCode: true };
-        case 'CLOSE_QR_CODE':
-            return { ...state, showQRCode: false };
-        case 'SET_CONTACT_MODAL':
-            return { ...state, showContactModal: action.payload };
-        case 'OPEN_CONTACT_MODAL':
-            return { ...state, showContactModal: true };
-        case 'CLOSE_CONTACT_MODAL':
-            return { ...state, showContactModal: false };
-        case 'SET_TECH_EXPANDED':
-            return { ...state, isTechExpanded: action.payload };
-        case 'TOGGLE_TECH_EXPANDED':
-            return { ...state, isTechExpanded: !state.isTechExpanded };
-        case 'EXPAND_TECH':
-            return { ...state, isTechExpanded: true };
-        case 'COLLAPSE_TECH':
-            return { ...state, isTechExpanded: false };
-        default:
-            return state;
-    }
+        const onScroll = () => {
+            frame ||= requestAnimationFrame(apply);
+        };
+
+        apply();
+        window.addEventListener('scroll', onScroll, { passive: true });
+
+        return () => {
+            window.removeEventListener('scroll', onScroll);
+            if (frame) cancelAnimationFrame(frame);
+            root.style.removeProperty('--scroll-progress');
+            root.removeAttribute('data-scrolled-past');
+        };
+    }, []);
 }
 
 interface PortfolioContextValue {
-    // Scroll state
-    scrollProgress: number;
-
-    // Viewport state
-    isDesktop: boolean;
-
-    // View modes
     isMarkdownMode: boolean;
-    setIsMarkdownMode: (value: boolean) => void;
     toggleMarkdownMode: () => void;
 
-    // Modal states
     showQRCode: boolean;
     setShowQRCode: (value: boolean) => void;
     openQRCode: () => void;
-    closeQRCode: () => void;
 
     showContactModal: boolean;
-    setShowContactModal: (value: boolean) => void;
     openContactModal: () => void;
     closeContactModal: () => void;
 
-    // Tech stack expansion
     isTechExpanded: boolean;
-    setIsTechExpanded: (value: boolean) => void;
-    toggleTechExpanded: () => void;
     expandTech: () => void;
     collapseTech: () => void;
 
-    // Analytics
-    track: (eventType: EventType, metadata?: Record<string, unknown>) => void;
+    track: (eventType: EventType, metadata?: Record<string, string>) => void;
 }
 
 const PortfolioContext = createContext<PortfolioContextValue | null>(null);
 
-interface PortfolioProviderProps {
-    children: ReactNode;
-}
+export function PortfolioProvider({ children }: { children: ReactNode }) {
+    const [isMarkdownMode, setIsMarkdownMode] = useState(false);
+    const [showQRCode, setShowQRCode] = useState(false);
+    const [showContactModal, setShowContactModal] = useState(false);
+    const [isTechExpanded, setIsTechExpanded] = useState(false);
+    const [sessionId] = useState<string>(getSessionId);
 
-// Tailwind lg breakpoint
-const LG_BREAKPOINT = 1024;
-
-export function PortfolioProvider({ children }: PortfolioProviderProps) {
-    // Use reducer for related UI state
-    const [state, dispatch] = useReducer(portfolioReducer, initialState);
-
-    // Scroll progress state (separate since it updates frequently)
-    const [scrollProgress, setScrollProgress] = useState(0);
-
-    // Viewport state - default to false for SSR
-    const [isDesktop, setIsDesktop] = useState(false);
-
-    const [sessionId] = useState<string>(() => getSessionId());
+    useScrollProgressProperty();
 
     const track = useCallback(
-        (eventType: EventType, metadata?: Record<string, unknown>) => {
+        (eventType: EventType, metadata?: Record<string, string>) => {
             // Fire and forget - don't block UI
-            trackEvent({
-                data: {
-                    eventType,
-                    sessionId,
-                    metadata,
+            trackEvent({ data: { eventType, sessionId, metadata } }).catch(
+                (error: unknown) => {
+                    console.error('Analytics tracking failed:', error);
                 },
-            }).catch((error: unknown) => {
-                console.error('Analytics tracking failed:', error);
-            });
+            );
         },
         [sessionId],
     );
 
-    // Scroll progress effect
-    useEffect(() => {
-        const handleScroll = () => {
-            const scrolled = window.scrollY;
-            const maxScroll = 400;
-            const progress = Math.min(scrolled / maxScroll, 1);
-            setScrollProgress(progress);
-        };
+    const toggleMarkdownMode = useCallback(
+        () => setIsMarkdownMode((v) => !v),
+        [],
+    );
+    const openQRCode = useCallback(() => setShowQRCode(true), []);
+    const openContactModal = useCallback(() => setShowContactModal(true), []);
+    const closeContactModal = useCallback(() => setShowContactModal(false), []);
+    const expandTech = useCallback(() => setIsTechExpanded(true), []);
+    const collapseTech = useCallback(() => setIsTechExpanded(false), []);
 
-        window.addEventListener('scroll', handleScroll, { passive: true });
-        handleScroll();
-
-        return () => window.removeEventListener('scroll', handleScroll);
-    }, []);
-
-    // Viewport detection effect
-    useEffect(() => {
-        const checkIsDesktop = () => {
-            setIsDesktop(window.innerWidth >= LG_BREAKPOINT);
-        };
-
-        // Check on mount
-        checkIsDesktop();
-
-        // Listen for resize
-        window.addEventListener('resize', checkIsDesktop, { passive: true });
-
-        return () => window.removeEventListener('resize', checkIsDesktop);
-    }, []);
-
-    // Memoized context value to prevent unnecessary re-renders
     const value = useMemo<PortfolioContextValue>(
         () => ({
-            // Scroll state
-            scrollProgress,
-
-            // Viewport state
-            isDesktop,
-
-            // Markdown mode
-            isMarkdownMode: state.isMarkdownMode,
-            setIsMarkdownMode: (value: boolean) =>
-                dispatch({ type: 'SET_MARKDOWN_MODE', payload: value }),
-            toggleMarkdownMode: () =>
-                dispatch({ type: 'TOGGLE_MARKDOWN_MODE' }),
-
-            // QR Code modal
-            showQRCode: state.showQRCode,
-            setShowQRCode: (value: boolean) =>
-                dispatch({ type: 'SET_QR_CODE', payload: value }),
-            openQRCode: () => dispatch({ type: 'OPEN_QR_CODE' }),
-            closeQRCode: () => dispatch({ type: 'CLOSE_QR_CODE' }),
-
-            // Contact modal
-            showContactModal: state.showContactModal,
-            setShowContactModal: (value: boolean) =>
-                dispatch({ type: 'SET_CONTACT_MODAL', payload: value }),
-            openContactModal: () => dispatch({ type: 'OPEN_CONTACT_MODAL' }),
-            closeContactModal: () => dispatch({ type: 'CLOSE_CONTACT_MODAL' }),
-
-            // Tech stack expansion
-            isTechExpanded: state.isTechExpanded,
-            setIsTechExpanded: (value: boolean) =>
-                dispatch({ type: 'SET_TECH_EXPANDED', payload: value }),
-            toggleTechExpanded: () =>
-                dispatch({ type: 'TOGGLE_TECH_EXPANDED' }),
-            expandTech: () => dispatch({ type: 'EXPAND_TECH' }),
-            collapseTech: () => dispatch({ type: 'COLLAPSE_TECH' }),
-
-            // Analytics
+            isMarkdownMode,
+            toggleMarkdownMode,
+            showQRCode,
+            setShowQRCode,
+            openQRCode,
+            showContactModal,
+            openContactModal,
+            closeContactModal,
+            isTechExpanded,
+            expandTech,
+            collapseTech,
             track,
         }),
         [
-            scrollProgress,
-            isDesktop,
-            state.isMarkdownMode,
-            state.showQRCode,
-            state.showContactModal,
-            state.isTechExpanded,
+            isMarkdownMode,
+            toggleMarkdownMode,
+            showQRCode,
+            openQRCode,
+            showContactModal,
+            openContactModal,
+            closeContactModal,
+            isTechExpanded,
+            expandTech,
+            collapseTech,
             track,
         ],
     );
@@ -264,59 +167,27 @@ function usePortfolioContext(): PortfolioContextValue {
     return context;
 }
 
-// Optional: Export individual hooks for specific slices of state
-export function useScrollProgress(): number {
-    const { scrollProgress } = usePortfolioContext();
-    return scrollProgress;
-}
-
-export function useIsDesktop(): boolean {
-    const { isDesktop } = usePortfolioContext();
-    return isDesktop;
-}
-
+// Slice hooks, so a component subscribes to a name rather than the whole
+// context. Each exposes only what has a call site.
 export function useMarkdownMode() {
-    const { isMarkdownMode, setIsMarkdownMode, toggleMarkdownMode } =
-        usePortfolioContext();
-    return { isMarkdownMode, setIsMarkdownMode, toggleMarkdownMode };
+    const { isMarkdownMode, toggleMarkdownMode } = usePortfolioContext();
+    return { isMarkdownMode, toggleMarkdownMode };
 }
 
 export function useQRCodeModal() {
-    const { showQRCode, setShowQRCode, openQRCode, closeQRCode } =
-        usePortfolioContext();
-    return { showQRCode, setShowQRCode, openQRCode, closeQRCode };
+    const { showQRCode, setShowQRCode, openQRCode } = usePortfolioContext();
+    return { showQRCode, setShowQRCode, openQRCode };
 }
 
 export function useContactModal() {
-    const {
-        showContactModal,
-        setShowContactModal,
-        openContactModal,
-        closeContactModal,
-    } = usePortfolioContext();
-    return {
-        showContactModal,
-        setShowContactModal,
-        openContactModal,
-        closeContactModal,
-    };
+    const { showContactModal, openContactModal, closeContactModal } =
+        usePortfolioContext();
+    return { showContactModal, openContactModal, closeContactModal };
 }
 
 export function useTechExpanded() {
-    const {
-        isTechExpanded,
-        setIsTechExpanded,
-        toggleTechExpanded,
-        expandTech,
-        collapseTech,
-    } = usePortfolioContext();
-    return {
-        isTechExpanded,
-        setIsTechExpanded,
-        toggleTechExpanded,
-        expandTech,
-        collapseTech,
-    };
+    const { isTechExpanded, expandTech, collapseTech } = usePortfolioContext();
+    return { isTechExpanded, expandTech, collapseTech };
 }
 
 export function useTrack() {

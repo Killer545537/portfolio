@@ -2,7 +2,7 @@
 //!
 //! Uses ANSI escape codes for terminal colors and formatting
 
-use crate::data::AppData;
+use crate::data::{AppData, DATA};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ANSI Color Codes
@@ -76,9 +76,11 @@ fn tech_tag(name: &str) -> String {
 // Static Content (Fallback)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// Load app data with fallback
-fn load_data() -> Option<AppData> {
-    AppData::load_default().ok()
+/// Borrow the process-wide parsed `me.toml`.
+///
+/// This used to re-read and re-parse the file from disk on every command.
+fn load_data() -> Option<&'static AppData> {
+    DATA.as_ref()
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -89,7 +91,7 @@ fn load_data() -> Option<AppData> {
 pub fn render_welcome_message() -> String {
     let data = load_data();
 
-    let (name, title, location) = match &data {
+    let (name, title, location) = match data {
         Some(d) => (
             d.profile.name.as_str(),
             d.profile.title.as_str(),
@@ -514,6 +516,22 @@ pub fn render_connect_success(name: &str) -> String {
     )
 }
 
+/// Renders the outcome when the address was recorded but no email went out.
+///
+/// The old code reported plain success here, so a visitor was told an email was
+/// on its way even when no email client was configured at all.
+pub fn render_connect_stored(name: &str) -> String {
+    format!(
+        r#"
+
+  {BRIGHT_GREEN}✓ Thanks, {name}!{RESET}
+
+  {WHITE}I've noted your details and will be in touch directly.{RESET}
+  {DIM}(The automatic confirmation email couldn't be sent right now.){RESET}
+"#
+    )
+}
+
 /// Renders the cancelled message
 pub fn render_connect_cancelled() -> String {
     format!("\r\n  {YELLOW}Cancelled.{RESET}")
@@ -543,6 +561,24 @@ mod tests {
     fn test_messages_use_crlf() {
         let welcome = render_welcome_message();
         assert!(welcome.contains("\r\n"));
+    }
+
+    #[test]
+    fn about_renders_the_real_profile() {
+        let data = load_data().expect("me.toml should be loadable from the workspace");
+        let about = render_about();
+        assert!(about.contains(&data.profile.name));
+        assert!(!about.contains("Unable to load"));
+    }
+
+    #[test]
+    fn stored_outcome_does_not_claim_an_email_was_sent() {
+        let stored = render_connect_stored("Ada");
+        assert!(stored.contains("Ada"));
+        assert!(
+            !stored.contains("I've sent you an email"),
+            "the stored-only path must not claim an email went out"
+        );
     }
 
     #[test]

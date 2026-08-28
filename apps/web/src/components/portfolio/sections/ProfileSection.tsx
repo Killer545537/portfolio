@@ -1,22 +1,13 @@
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { INTERESTS, PROFILE } from '@/lib/data';
-import { useScrollProgress } from '@/lib/portfolio-context';
 import { GitHubHeatmap } from '../GitHubHeatmap';
 
+// The scroll-driven fade/blur/slide lives in styles.css under `.profile-column`,
+// keyed off the --scroll-progress custom property.
 export function ProfileSection() {
-    const scrollProgress = useScrollProgress();
-
     return (
-        <div
-            className='lg:col-span-5 pt-12 lg:pt-24 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto hide-scrollbar flex flex-col transition-all duration-75 ease-out'
-            style={{
-                opacity: `calc(1 - ${scrollProgress} * 1.5)`,
-                filter: `blur(${scrollProgress * 8}px)`,
-                transform: `translateX(-${scrollProgress * 60}px)`,
-                pointerEvents: scrollProgress > 0.8 ? 'none' : 'auto',
-            }}
-        >
+        <div className='profile-column lg:col-span-5 pt-12 lg:pt-24 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto hide-scrollbar flex flex-col transition-all duration-75 ease-out'>
             <div className='space-y-10 pb-12'>
                 {/* Header Profile */}
                 <ProfileHeader />

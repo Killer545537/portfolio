@@ -45,8 +45,15 @@ COPY --from=builder /app/target/release/ssh /app/ssh-server
 COPY me.toml /app/me.toml
 
 # Drop root: the server only reads files and binds 2222 (>1024).
-RUN adduser -D -H -u 10001 appuser
+# /app/data holds the persistent SSH host key and must be writable by appuser;
+# mount a volume over it so the key survives container replacement.
+RUN adduser -D -H -u 10001 appuser \
+    && mkdir -p /app/data \
+    && chown appuser:appuser /app/data
 USER appuser
+
+ENV SSH_HOST_KEY_FILE=/app/data/ssh_host_key
+VOLUME ["/app/data"]
 
 EXPOSE 2222
 CMD ["/app/ssh-server"]

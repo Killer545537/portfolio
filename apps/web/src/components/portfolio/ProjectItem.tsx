@@ -13,7 +13,7 @@ export function ProjectItem({ project }: ProjectItemProps) {
     const handleProjectLinkClick = () => {
         track('project_link_click', {
             projectTitle: project.title,
-            link: project.link,
+            ...(project.link && { link: project.link }),
         });
     };
 

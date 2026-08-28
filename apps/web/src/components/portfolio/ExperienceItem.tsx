@@ -24,7 +24,7 @@ export function ExperienceItem({ exp }: ExperienceItemProps) {
         track('experience_link_click', {
             organization: exp.organization,
             role: exp.role,
-            link: exp.link,
+            ...(exp.link && { link: exp.link }),
         });
     };
 

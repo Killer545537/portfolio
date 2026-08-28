@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import {
     ContactModal,
     FloatingNav,
-    GlobalStyles,
     MainContent,
     MarkdownView,
     ProfileSection,
@@ -39,8 +38,6 @@ function PortfolioLayout() {
 
     return (
         <div className='min-h-screen bg-white selection:bg-zinc-900 selection:text-white pb-24 lg:pb-0'>
-            <GlobalStyles />
-
             {isMarkdownMode ? (
                 <MarkdownView />
             ) : (

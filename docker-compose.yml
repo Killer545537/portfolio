@@ -12,14 +12,12 @@ services:
             - PORT=3000
             - DATABASE_URL=${DATABASE_URL}
             - RESEND_API_KEY=${RESEND_API_KEY:-}
+            - RESEND_FROM=${RESEND_FROM:-}
         volumes:
             - ./me.toml:/app/me.toml:ro
-        healthcheck:
-            test: ["CMD", "curl", "-f", "http://localhost:3000"]
-            interval: 30s
-            timeout: 10s
-            retries: 3
-            start_period: 10s
+        # No healthcheck here: the image has no curl, and the Dockerfile already
+        # defines a working one using bun. Overriding it with `curl -f` left the
+        # container permanently unhealthy.
 
     ssh:
         build:
@@ -32,5 +30,12 @@ services:
         environment:
             - DATABASE_URL=${DATABASE_URL}
             - RESEND_API_KEY=${RESEND_API_KEY:-}
+            - RESEND_FROM=${RESEND_FROM:-}
         volumes:
             - ./me.toml:/app/me.toml:ro
+            # Persists the SSH host key. Without it every restart hands returning
+            # visitors a "REMOTE HOST IDENTIFICATION HAS CHANGED" warning.
+            - ssh-host-key:/app/data
+
+volumes:
+    ssh-host-key:

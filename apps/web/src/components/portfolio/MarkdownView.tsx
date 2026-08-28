@@ -4,9 +4,10 @@ import {
     EXPERIENCES,
     PROFILE,
     PROJECTS,
+    TECH_CATEGORY_LABELS,
     TECH_STACK,
 } from '@/lib/data';
-import type { TechItem } from '@/lib/types';
+import type { TechCategory, TechItem } from '@/lib/types';
 
 function generateMarkdown(): string {
     return `
@@ -34,7 +35,7 @@ ${p.highlights.map((h) => `- ${h}`).join('\n')}`,
 ${Object.entries(TECH_STACK)
     .map(
         ([key, items]) =>
-            `- **${key.toUpperCase()}**: ${(items as TechItem[]).map((i) => i.name).join(', ')}`,
+            `- **${TECH_CATEGORY_LABELS[key as TechCategory]}**: ${(items as TechItem[]).map((i) => i.name).join(', ')}`,
     )
     .join('\n')}
 

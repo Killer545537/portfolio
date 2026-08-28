@@ -1,7 +1,11 @@
 //! Data module for loading and parsing me.toml configuration
+//!
+//! This mirrors `apps/web/src/lib/types.ts`. Optionality on both sides must
+//! match, or one app will refuse data the other happily renders.
 
 use serde::Deserialize;
 use std::path::Path;
+use std::sync::LazyLock;
 
 /// Root configuration structure matching me.toml
 #[derive(Debug, Deserialize)]
@@ -15,6 +19,7 @@ pub struct AppData {
     pub tech_stack: TechStack,
     pub languages_spoken: Vec<LanguageSpoken>,
     pub interests: Interests,
+    pub email: EmailCopy,
 }
 
 #[derive(Debug, Deserialize)]
@@ -25,6 +30,9 @@ pub struct Profile {
     pub location: String,
     #[allow(dead_code)]
     pub avatar: Option<String>,
+    /// Bare host, e.g. "srijanmahajan.me". Single source for every place the
+    /// site is referenced by name.
+    pub site: String,
     pub contact: Contact,
     pub bio: Bio,
 }
@@ -71,6 +79,7 @@ pub struct Experience {
 pub struct Project {
     pub title: String,
     pub category: Option<String>,
+    #[serde(default)]
     pub tech: Vec<String>,
     pub link: Option<String>,
     pub highlights: Vec<String>,
@@ -103,6 +112,30 @@ pub struct LanguageSpoken {
 pub struct Interests {
     pub list: Vec<String>,
 }
+
+/// Copy for the connection email, shared with the web app's React template.
+/// `greeting` contains a `{name}` placeholder, `footer` a `{site}` one.
+#[derive(Debug, Deserialize)]
+pub struct EmailCopy {
+    pub subject: String,
+    pub greeting: String,
+    pub paragraphs: Vec<String>,
+    pub signoff: Vec<String>,
+    pub footer: String,
+}
+
+/// Parsed `me.toml`, loaded once on first use.
+///
+/// Every render path used to re-read and re-parse the file from disk on each
+/// command; this reads it once for the life of the process.
+pub static DATA: LazyLock<Option<AppData>> = LazyLock::new(|| match AppData::load_default() {
+    Ok(data) => Some(data),
+    Err(e) => {
+        eprintln!("⚠ Could not load me.toml: {e}");
+        eprintln!("  Portfolio content and connection emails will be unavailable.");
+        None
+    }
+});
 
 impl AppData {
     /// Load configuration from a TOML file

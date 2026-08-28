@@ -2,11 +2,9 @@
 //!
 //! Handles analytics events and contact storage
 
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use sqlx::{FromRow, PgPool, Row};
 use uuid::Uuid;
 
 /// Database connection pool wrapper
@@ -15,9 +13,9 @@ pub struct Database {
     pool: PgPool,
 }
 
-/// Event types for analytics
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// Event types for analytics. `Display` is the wire format written to
+/// `events.event_type`, matching the web app's event names.
+#[derive(Debug, Clone, Copy)]
 pub enum EventType {
     Connect,
     Disconnect,
@@ -36,27 +34,6 @@ impl std::fmt::Display for EventType {
     }
 }
 
-/// Analytics event record
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Event {
-    pub id: Uuid,
-    pub source: String,
-    pub event_type: String,
-    pub session_id: Option<String>,
-    pub metadata: Option<JsonValue>,
-    pub created_at: DateTime<Utc>,
-}
-
-/// Contact record
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct Contact {
-    pub id: Uuid,
-    pub email: String,
-    pub created_at: DateTime<Utc>,
-}
-
 impl Database {
     /// Create a new database connection pool from DATABASE_URL
     pub async fn connect() -> anyhow::Result<Self> {
@@ -71,91 +48,53 @@ impl Database {
         Ok(Self { pool })
     }
 
-    /// Create a new database connection pool from a specific URL
-    #[allow(dead_code)]
-    pub async fn connect_with_url(database_url: &str) -> anyhow::Result<Self> {
-        let pool = PgPoolOptions::new()
-            .max_connections(5)
-            .connect(database_url)
-            .await?;
-
-        Ok(Self { pool })
-    }
-
     /// Track an analytics event
     pub async fn track_event(
         &self,
         event_type: EventType,
         session_id: Option<&str>,
         metadata: Option<JsonValue>,
-    ) -> anyhow::Result<Uuid> {
-        let id = Uuid::new_v4();
-        let source = "ssh";
-        let event_type_str = event_type.to_string();
-
+    ) -> anyhow::Result<()> {
         sqlx::query(
             r#"
             INSERT INTO events (id, source, event_type, session_id, metadata)
             VALUES ($1, $2, $3, $4, $5)
             "#,
         )
-        .bind(id)
-        .bind(source)
-        .bind(&event_type_str)
+        .bind(Uuid::new_v4())
+        .bind("ssh")
+        .bind(event_type.to_string())
         .bind(session_id)
         .bind(&metadata)
         .execute(&self.pool)
         .await?;
 
-        Ok(id)
+        Ok(())
     }
 
-    /// Store a contact email (upsert - ignore if already exists)
-    pub async fn store_contact(&self, email: &str) -> anyhow::Result<Uuid> {
-        let id = Uuid::new_v4();
-
-        // Use ON CONFLICT DO NOTHING, then try to get the id
-        let result = sqlx::query(
+    /// Store a contact email. Re-submitting an existing address is a no-op,
+    /// matching `submitContact` on the web side.
+    pub async fn store_contact(&self, email: &str) -> anyhow::Result<()> {
+        sqlx::query(
             r#"
             INSERT INTO contacts (id, email)
             VALUES ($1, $2)
             ON CONFLICT (email) DO NOTHING
-            RETURNING id
             "#,
         )
-        .bind(id)
+        .bind(Uuid::new_v4())
         .bind(email)
-        .fetch_optional(&self.pool)
+        .execute(&self.pool)
         .await?;
 
-        // If insert succeeded, return new id; otherwise fetch existing
-        match result {
-            Some(row) => {
-                let inserted_id: Uuid = row.get("id");
-                Ok(inserted_id)
-            }
-            None => {
-                // Email already exists, fetch existing id
-                let row = sqlx::query(r#"SELECT id FROM contacts WHERE email = $1"#)
-                    .bind(email)
-                    .fetch_one(&self.pool)
-                    .await?;
-                let existing_id: Uuid = row.get("id");
-                Ok(existing_id)
-            }
-        }
+        Ok(())
     }
 
     /// Track a command execution
     pub async fn track_command(&self, session_id: &str, command: &str) -> anyhow::Result<()> {
-        let metadata = serde_json::json!({
-            "command": command
-        });
-
+        let metadata = serde_json::json!({ "command": command });
         self.track_event(EventType::Command, Some(session_id), Some(metadata))
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Track a connection event
@@ -164,36 +103,22 @@ impl Database {
         session_id: &str,
         client_addr: Option<&str>,
     ) -> anyhow::Result<()> {
-        let metadata = client_addr.map(|addr| {
-            serde_json::json!({
-                "client_addr": addr
-            })
-        });
-
+        let metadata = client_addr.map(|addr| serde_json::json!({ "client_addr": addr }));
         self.track_event(EventType::Connect, Some(session_id), metadata)
-            .await?;
-
-        Ok(())
+            .await
     }
 
     /// Track a disconnection event
     pub async fn track_disconnect(&self, session_id: &str) -> anyhow::Result<()> {
         self.track_event(EventType::Disconnect, Some(session_id), None)
-            .await?;
-
-        Ok(())
+            .await
     }
 
-    /// Track a contact submission
-    pub async fn track_contact(&self, session_id: &str, email: &str) -> anyhow::Result<()> {
-        let metadata = serde_json::json!({
-            "email": email
-        });
-
-        self.track_event(EventType::Contact, Some(session_id), Some(metadata))
-            .await?;
-
-        Ok(())
+    /// Track a contact submission. The address itself lives in `contacts`; the
+    /// event only records that one happened.
+    pub async fn track_contact(&self, session_id: &str) -> anyhow::Result<()> {
+        self.track_event(EventType::Contact, Some(session_id), None)
+            .await
     }
 }
 
@@ -220,57 +145,30 @@ impl OptionalDatabase {
         }
     }
 
-    /// Check if database is available
-    #[allow(dead_code)]
-    pub fn is_available(&self) -> bool {
-        self.db.is_some()
-    }
-
-    /// Get the inner database if available
-    #[allow(dead_code)]
-    pub fn inner(&self) -> Option<&Database> {
-        self.db.as_ref()
-    }
-
-    /// Track event if database is available
-    #[allow(dead_code)]
-    pub async fn track_event(
-        &self,
-        event_type: EventType,
-        session_id: Option<&str>,
-        metadata: Option<JsonValue>,
-    ) {
-        if let Some(db) = &self.db {
-            if let Err(e) = db.track_event(event_type, session_id, metadata).await {
-                eprintln!("Failed to track event: {e}");
-            }
-        }
-    }
-
     /// Track command if database is available
     pub async fn track_command(&self, session_id: &str, command: &str) {
-        if let Some(db) = &self.db {
-            if let Err(e) = db.track_command(session_id, command).await {
-                eprintln!("Failed to track command: {e}");
-            }
+        if let Some(db) = &self.db
+            && let Err(e) = db.track_command(session_id, command).await
+        {
+            eprintln!("Failed to track command: {e}");
         }
     }
 
     /// Track connect if database is available
     pub async fn track_connect(&self, session_id: &str, client_addr: Option<&str>) {
-        if let Some(db) = &self.db {
-            if let Err(e) = db.track_connect(session_id, client_addr).await {
-                eprintln!("Failed to track connect: {e}");
-            }
+        if let Some(db) = &self.db
+            && let Err(e) = db.track_connect(session_id, client_addr).await
+        {
+            eprintln!("Failed to track connect: {e}");
         }
     }
 
     /// Track disconnect if database is available
     pub async fn track_disconnect(&self, session_id: &str) {
-        if let Some(db) = &self.db {
-            if let Err(e) = db.track_disconnect(session_id).await {
-                eprintln!("Failed to track disconnect: {e}");
-            }
+        if let Some(db) = &self.db
+            && let Err(e) = db.track_disconnect(session_id).await
+        {
+            eprintln!("Failed to track disconnect: {e}");
         }
     }
 
@@ -283,11 +181,11 @@ impl OptionalDatabase {
     }
 
     /// Track contact event if database is available
-    pub async fn track_contact(&self, session_id: &str, email: &str) {
-        if let Some(db) = &self.db {
-            if let Err(e) = db.track_contact(session_id, email).await {
-                eprintln!("Failed to track contact: {e}");
-            }
+    pub async fn track_contact(&self, session_id: &str) {
+        if let Some(db) = &self.db
+            && let Err(e) = db.track_contact(session_id).await
+        {
+            eprintln!("Failed to track contact: {e}");
         }
     }
 }

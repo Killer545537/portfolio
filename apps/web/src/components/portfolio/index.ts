@@ -1,6 +1,5 @@
 // Layout components
 export { FloatingNav } from './FloatingNav';
-export { GlobalStyles } from './GlobalStyles';
 export { MarkdownView } from './MarkdownView';
 // Modals
 export { ContactModal, QRCodeModal } from './modals';
