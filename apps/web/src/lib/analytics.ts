@@ -1,6 +1,6 @@
 import { createServerFn } from '@tanstack/react-start';
 
-import { db } from '@/db';
+import { getDb } from '@/db';
 import { events } from '@/db/schema';
 
 export type EventType =
@@ -34,12 +34,14 @@ export const trackEvent = createServerFn({ method: 'POST' })
     })
     .handler(async ({ data }: { data: TrackEventInput }) => {
         try {
-            await db.insert(events).values({
-                source: 'web',
-                eventType: data.eventType,
-                sessionId: data.sessionId ?? null,
-                metadata: data.metadata ?? null,
-            });
+            await getDb()
+                .insert(events)
+                .values({
+                    source: 'web',
+                    eventType: data.eventType,
+                    sessionId: data.sessionId ?? null,
+                    metadata: data.metadata ?? null,
+                });
             return { success: true };
         } catch (error) {
             console.error('Failed to track event:', error);
