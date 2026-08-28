@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
     println!();
 
     // Load configuration
-    let config = ServerConfig::default();
+    let config = ServerConfig::from_env();
     let russh_config = config.to_russh_config()?;
 
     // Create server instance with services

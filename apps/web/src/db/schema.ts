@@ -1,3 +1,5 @@
+// db/migrations/*.sql is authoritative for the actual schema; this file exists
+// to type queries and must be kept in step with it by hand.
 import { jsonb, pgTable, text, timestamp, uuid } from 'drizzle-orm/pg-core';
 
 export const contacts = pgTable('contacts', {

@@ -6,7 +6,7 @@
         "dev": "bun --bun vite dev --port 3000",
         "build": "bun --bun vite build",
         "start": "bun run .output/server/index.mjs",
-        "clean": "rm -rf .next node_modules",
+        "clean": "rm -rf .output .nitro .tanstack node_modules",
         "format": "bun --bun biome check --write --verbose",
         "lint": "bun --bun biome check",
         "db:studio": "bun --bun drizzle-kit studio"

@@ -2,7 +2,6 @@ import { cn } from '@/lib/utils';
 
 interface SectionProps {
     title?: string;
-    subtitle?: string;
     children: React.ReactNode;
     id?: string;
     className?: string;
@@ -10,10 +9,9 @@ interface SectionProps {
 
 export const Section: React.FC<SectionProps> = ({
     title,
-    subtitle,
     children,
     id,
-    className = '',
+    className,
 }) => (
     <section id={id} className={cn('py-12', className)}>
         {title && (
@@ -21,11 +19,6 @@ export const Section: React.FC<SectionProps> = ({
                 {title}
             </h2>
         )}
-        {subtitle && (
-            <p className='text-base text-zinc-500 mb-6 leading-relaxed'>
-                {subtitle}
-            </p>
-        )}
-        <div>{children}</div>
+        {children}
     </section>
 );

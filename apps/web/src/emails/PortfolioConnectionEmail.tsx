@@ -7,14 +7,21 @@ import {
     Tailwind,
     Text,
 } from '@react-email/components';
+import { Fragment } from 'react';
+import { EMAIL_COPY, PROFILE } from '@/lib/data';
 
 interface PortfolioConnectionEmailProps {
     name: string;
 }
 
+// Copy lives in me.toml under [email], shared with apps/ssh/src/email.rs.
+// Only the layout is per-language.
 export function PortfolioConnectionEmail({
     name,
 }: PortfolioConnectionEmailProps) {
+    const greeting = EMAIL_COPY.greeting.replace('{name}', name);
+    const footer = EMAIL_COPY.footer.replace('{site}', PROFILE.site);
+
     return (
         <Html lang='en' dir='ltr'>
             <Tailwind>
@@ -23,40 +30,31 @@ export function PortfolioConnectionEmail({
                     <Container className='bg-white rounded-xl p-8 max-w-150 mx-auto'>
                         <Section>
                             <Text className='text-[18px] font-bold text-gray-900 mb-6 mt-0'>
-                                Hi {name},
+                                {greeting}
                             </Text>
 
-                            <Text className='text-[16px] text-gray-700 mb-4 mt-0 leading-6'>
-                                Thanks for reaching out through my portfolio. I
-                                appreciate you taking the time to connect.
-                            </Text>
-
-                            <Text className='text-[16px] text-gray-700 mb-4 mt-0 leading-6'>
-                                I'm Srijan, a full-stack developer who focuses
-                                on systems architecture, backend development,
-                                and building performance-oriented software. I
-                                enjoy tackling complex technical challenges and
-                                creating solutions that scale effectively.
-                            </Text>
-
-                            <Text className='text-[16px] text-gray-700 mb-6 mt-0 leading-6'>
-                                Feel free to reply if you'd like to discuss
-                                potential collaboration, interesting projects,
-                                or opportunities. I'd be happy to hear what
-                                you're working on.
-                            </Text>
+                            {EMAIL_COPY.paragraphs.map((paragraph) => (
+                                <Text
+                                    key={paragraph}
+                                    className='text-[16px] text-gray-700 mb-4 mt-0 leading-6'
+                                >
+                                    {paragraph}
+                                </Text>
+                            ))}
 
                             <Text className='text-[16px] text-gray-700 mb-0 mt-0 leading-6'>
-                                Best regards,
-                                <br />
-                                Srijan Mahajan
+                                {EMAIL_COPY.signoff.map((line, i) => (
+                                    <Fragment key={line}>
+                                        {i > 0 && <br />}
+                                        {line}
+                                    </Fragment>
+                                ))}
                             </Text>
                         </Section>
 
                         <Section className='mt-10 pt-6 border-t border-solid border-gray-200'>
                             <Text className='text-[12px] text-gray-500 m-0 text-center'>
-                                This email was sent because you connected
-                                through srijanmahajan.me
+                                {footer}
                             </Text>
                         </Section>
                     </Container>

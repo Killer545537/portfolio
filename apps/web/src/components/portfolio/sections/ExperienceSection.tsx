@@ -10,7 +10,10 @@ export function ExperienceSection() {
             className='py-0'
         >
             {EXPERIENCES.map((exp) => (
-                <ExperienceItem key={exp.organization} exp={exp} />
+                <ExperienceItem
+                    key={`${exp.organization}-${exp.role}`}
+                    exp={exp}
+                />
             ))}
         </Section>
     );

@@ -8,6 +8,7 @@ phonetic = "/ˈsriːdʒən məˈhɑːdʒən/"
 title = "Full-Stack & Systems Developer"
 location = "India"
 avatar = "/profile-photo.jpg"
+site = "srijanmahajan.me"
 
 [profile.contact]
 phone = "+91-8178863697"
@@ -244,3 +245,21 @@ list = [
   "Real-Time Infrastructure",
   "Algorithmic Problem Solving"
 ]
+
+# =========================
+# Connection Email
+# =========================
+# Shared copy for the "thanks for connecting" email. Rendered by
+# apps/web/src/emails/PortfolioConnectionEmail.tsx (React Email) and by
+# apps/ssh/src/email.rs (plain HTML). {name} and {site} are substituted.
+
+[email]
+subject = "Thanks for connecting!"
+greeting = "Hi {name},"
+paragraphs = [
+  "Thanks for reaching out through my portfolio. I appreciate you taking the time to connect.",
+  "I'm Srijan, a full-stack developer who focuses on systems architecture, backend development, and building performance-oriented software. I enjoy tackling complex technical challenges and creating solutions that scale effectively.",
+  "Feel free to reply if you'd like to discuss potential collaboration, interesting projects, or opportunities. I'd be happy to hear what you're working on."
+]
+signoff = ["Best regards,", "Srijan Mahajan"]
+footer = "This email was sent because you connected through {site}"

@@ -1,6 +1,5 @@
-import { TanStackDevtools } from '@tanstack/react-devtools';
 import { createRootRoute, HeadContent, Scripts } from '@tanstack/react-router';
-import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools';
+import { lazy, Suspense } from 'react';
 import { TooltipProvider } from '@/components/ui/tooltip';
 
 import appCss from '../styles.css?url';
@@ -28,6 +27,34 @@ export const Route = createRootRoute({
     shellComponent: RootDocument,
 });
 
+// Devtools come from devDependencies and used to render unconditionally,
+// shipping the panel to production. `import.meta.env.DEV` is statically
+// replaced at build time, so the dynamic import below is dropped entirely
+// from the production bundle rather than merely hidden.
+const Devtools = import.meta.env.DEV
+    ? lazy(async () => {
+          const [{ TanStackDevtools }, { TanStackRouterDevtoolsPanel }] =
+              await Promise.all([
+                  import('@tanstack/react-devtools'),
+                  import('@tanstack/react-router-devtools'),
+              ]);
+
+          return {
+              default: () => (
+                  <TanStackDevtools
+                      config={{ position: 'bottom-right' }}
+                      plugins={[
+                          {
+                              name: 'Tanstack Router',
+                              render: <TanStackRouterDevtoolsPanel />,
+                          },
+                      ]}
+                  />
+              ),
+          };
+      })
+    : null;
+
 function RootDocument({ children }: { children: React.ReactNode }) {
     return (
         <html lang='en'>
@@ -36,17 +63,11 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </head>
             <body>
                 <TooltipProvider>{children}</TooltipProvider>
-                <TanStackDevtools
-                    config={{
-                        position: 'bottom-right',
-                    }}
-                    plugins={[
-                        {
-                            name: 'Tanstack Router',
-                            render: <TanStackRouterDevtoolsPanel />,
-                        },
-                    ]}
-                />
+                {Devtools && (
+                    <Suspense fallback={null}>
+                        <Devtools />
+                    </Suspense>
+                )}
                 <Scripts />
             </body>
         </html>

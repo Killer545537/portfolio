@@ -5,28 +5,17 @@ use russh::{
     Channel, ChannelId, Pty,
     server::{Auth, ChannelOpenHandle, Msg, Session},
 };
-use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tokio::sync::Mutex;
+use std::net::SocketAddr;
 
 use crate::db::OptionalDatabase;
 use crate::email::OptionalEmailClient;
 use crate::ui;
-
-/// Shared map of all connected clients
-pub type ClientMap = Arc<Mutex<HashMap<usize, ClientInfo>>>;
 
 /// Shared services for all handlers
 #[derive(Clone)]
 pub struct SharedServices {
     pub db: OptionalDatabase,
     pub email: OptionalEmailClient,
-}
-
-/// Information stored for each connected client
-#[allow(dead_code)]
-pub struct ClientInfo {
-    pub channel_id: ChannelId,
-    pub handle: russh::server::Handle,
 }
 
 /// Input state for multi-step forms
@@ -40,11 +29,20 @@ pub enum InputState {
     ConnectEmail { name: String },
 }
 
+/// What actually happened when a visitor submitted the connect form.
+#[derive(Debug, PartialEq, Eq)]
+enum ContactOutcome {
+    /// Stored and the confirmation email went out.
+    Emailed,
+    /// Stored, but no email was sent (no RESEND_API_KEY, or Resend rejected it).
+    StoredOnly,
+    /// Nothing was recorded.
+    Failed,
+}
+
 /// Represents a connected SSH client session
 #[derive(Clone)]
 pub struct ClientHandler {
-    /// Shared map of all connected clients
-    clients: ClientMap,
     /// Shared services (database, email)
     services: SharedServices,
     /// Unique identifier for this client
@@ -63,16 +61,10 @@ pub struct ClientHandler {
 
 impl ClientHandler {
     /// Create a new client handler
-    pub fn new(
-        id: usize,
-        clients: ClientMap,
-        services: SharedServices,
-        client_addr: Option<SocketAddr>,
-    ) -> Self {
+    pub fn new(id: usize, services: SharedServices, client_addr: Option<SocketAddr>) -> Self {
         let session_id = format!("ssh-{}-{}", id, chrono::Utc::now().timestamp());
 
         Self {
-            clients,
             services,
             id,
             session_id,
@@ -81,12 +73,6 @@ impl ClientHandler {
             input_buffer: String::new(),
             input_state: InputState::Command,
         }
-    }
-
-    /// Get the client's unique ID
-    #[allow(dead_code)]
-    pub fn id(&self) -> usize {
-        self.id
     }
 
     /// Send data to the client's channel
@@ -155,7 +141,8 @@ impl ClientHandler {
         match cmd.as_str() {
             "q" | "quit" | "exit" => {
                 println!("[{}] Client requested disconnect", self.id);
-                self.services.db.track_disconnect(&self.session_id).await;
+                // `channel_close` records the disconnect; doing it here too
+                // would write the event twice for every clean exit.
                 self.send_message(channel, &ui::render_goodbye(), session)?;
                 return Ok(true); // Signal to close the channel
             }
@@ -248,17 +235,14 @@ impl ClientHandler {
         self.send_message(channel, &ui::render_connect_processing(), session)?;
 
         // Store contact and send email
-        let success = self.submit_contact(name, &email).await;
-
-        if success {
-            self.send_message(channel, &ui::render_connect_success(name), session)?;
-        } else {
-            self.send_message(
-                channel,
-                &ui::render_connect_error("Something went wrong. Please try again later."),
-                session,
-            )?;
-        }
+        let message = match self.submit_contact(name, &email).await {
+            ContactOutcome::Emailed => ui::render_connect_success(name),
+            ContactOutcome::StoredOnly => ui::render_connect_stored(name),
+            ContactOutcome::Failed => {
+                ui::render_connect_error("Something went wrong. Please try again later.")
+            }
+        };
+        self.send_message(channel, &message, session)?;
 
         // Reset to command state
         self.input_state = InputState::Command;
@@ -266,30 +250,29 @@ impl ClientHandler {
         Ok(false)
     }
 
-    /// Submit contact to database and send email
-    async fn submit_contact(&self, name: &str, email: &str) -> bool {
-        // Track the contact event
-        self.services
-            .db
-            .track_contact(&self.session_id, email)
-            .await;
+    /// Store the contact and send the confirmation email, reporting what
+    /// actually happened. Claiming an email was sent when it was not is worse
+    /// than admitting the address was only recorded.
+    async fn submit_contact(&self, name: &str, email: &str) -> ContactOutcome {
+        self.services.db.track_contact(&self.session_id).await;
 
-        // Store in database
         if let Err(e) = self.services.db.store_contact(email).await {
             eprintln!("[{}] Failed to store contact: {}", self.id, e);
-            // Continue anyway - email might still work
+            return ContactOutcome::Failed;
         }
 
-        // Send email
+        if !self.services.email.is_available() {
+            return ContactOutcome::StoredOnly;
+        }
+
         match self.services.email.send_connection_email(name, email).await {
             Ok(()) => {
                 println!("[{}] Sent connection email to {}", self.id, email);
-                true
+                ContactOutcome::Emailed
             }
             Err(e) => {
                 eprintln!("[{}] Failed to send email to {}: {}", self.id, email, e);
-                // Return true if email client is not configured (graceful degradation)
-                !self.services.email.is_available()
+                ContactOutcome::StoredOnly
             }
         }
     }
@@ -309,20 +292,10 @@ impl russh::server::Handler for ClientHandler {
 
     async fn channel_open_session(
         &mut self,
-        channel: Channel<Msg>,
+        _channel: Channel<Msg>,
         reply: ChannelOpenHandle,
-        session: &mut Session,
+        _session: &mut Session,
     ) -> Result<(), Self::Error> {
-        let client_info = ClientInfo {
-            channel_id: channel.id(),
-            handle: session.handle(),
-        };
-
-        {
-            let mut clients = self.clients.lock().await;
-            clients.insert(self.id, client_info);
-        }
-
         println!("[{}] Session channel opened", self.id);
         // russh 0.63: the open request is rejected if this handle is dropped
         // without accepting, so this replaces the old `Ok(true)` return.
@@ -373,18 +346,27 @@ impl russh::server::Handler for ClientHandler {
         session: &mut Session,
     ) -> Result<(), Self::Error> {
         let command = String::from_utf8_lossy(data);
+        // Truncate by characters, not bytes: slicing `&command[..50]` panics
+        // when byte 50 lands inside a multi-byte character.
+        let preview: String = command.chars().take(50).collect();
         println!(
             "[{}] Exec requested on channel {:?}: {}",
-            self.id,
-            channel,
-            if command.len() > 50 {
-                format!("{}...", &command[..50])
-            } else {
-                command.to_string()
-            }
+            self.id, channel, preview
         );
         session.channel_success(channel)?;
-        self.send_welcome(channel, session).await?;
+
+        // Non-interactive `ssh host <cmd>`: print the banner and hang up.
+        // Leaving the channel open stranded these sessions until the inactivity
+        // timeout fired an hour later.
+        let addr_str = self.client_addr.map(|a| a.to_string());
+        self.services
+            .db
+            .track_connect(&self.session_id, addr_str.as_deref())
+            .await;
+        self.send_message(channel, &ui::render_welcome_message(), session)?;
+        self.send_message(channel, &ui::render_help(), session)?;
+        session.exit_status_request(channel, 0)?;
+        session.close(channel)?;
         Ok(())
     }
 
@@ -425,10 +407,9 @@ impl russh::server::Handler for ClientHandler {
                     self.send_message(channel, "^C\r\n", session)?;
                     self.send_prompt(channel, session)?;
                 }
-                // Ctrl+D - exit
+                // Ctrl+D - exit. `channel_close` records the disconnect.
                 4 => {
                     println!("[{}] Client sent Ctrl+D", self.id);
-                    self.services.db.track_disconnect(&self.session_id).await;
                     self.send_message(channel, &ui::render_goodbye(), session)?;
                     session.close(channel)?;
                     return Ok(());
@@ -443,6 +424,9 @@ impl russh::server::Handler for ClientHandler {
                     }
                 }
                 // Regular printable characters (ASCII 32-126)
+                // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
+                // continuation bytes and are dropped rather than mangled;
+                // buffer the bytes and decode on Enter if that ever matters.
                 32..=126 => {
                     self.input_buffer.push(byte as char);
                     // Echo the character back to the client
@@ -467,12 +451,9 @@ impl russh::server::Handler for ClientHandler {
     ) -> Result<(), Self::Error> {
         println!("[{}] Channel {:?} closed", self.id, channel);
 
-        // Track disconnection
+        // The single place a disconnect is recorded: it runs for clean exits
+        // and dropped connections alike.
         self.services.db.track_disconnect(&self.session_id).await;
-
-        // Remove client from the shared map
-        let mut clients = self.clients.lock().await;
-        clients.remove(&self.id);
 
         Ok(())
     }
@@ -526,5 +507,14 @@ mod tests {
         assert!(!is_valid_email("user@domain"));
         assert!(!is_valid_email("user@.com"));
         assert!(!is_valid_email("user@domain."));
+    }
+
+    /// The bug this replaced: `&command[..50]` panicked whenever byte 50 fell
+    /// inside a multi-byte character.
+    #[test]
+    fn exec_preview_does_not_split_multibyte_chars() {
+        let command = "é".repeat(60);
+        let preview: String = command.chars().take(50).collect();
+        assert_eq!(preview.chars().count(), 50);
     }
 }

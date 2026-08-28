@@ -4,6 +4,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { SITE_URL } from '@/lib/data';
 import { useQRCodeModal } from '@/lib/portfolio-context';
 
 export function QRCodeModal() {
@@ -17,7 +18,7 @@ export function QRCodeModal() {
                 </DialogHeader>
                 <div className='flex flex-col items-center gap-6 py-4'>
                     <img
-                        src='https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://srijanmahajan.com/'
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(`${SITE_URL}/`)}`}
                         alt='QR Code'
                         className='w-48 h-48'
                     />

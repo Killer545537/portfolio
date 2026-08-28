@@ -4,12 +4,10 @@
 
 use std::net::SocketAddr;
 
-use crate::handler::{ClientHandler, ClientMap, SharedServices};
+use crate::handler::{ClientHandler, SharedServices};
 
-/// SSH Server that manages client connections
-#[derive(Clone)]
+/// SSH Server that hands each connection its own handler
 pub struct Server {
-    clients: ClientMap,
     services: SharedServices,
     next_id: usize,
 }
@@ -18,21 +16,9 @@ impl Server {
     /// Create a new SSH server instance with shared services
     pub fn new(services: SharedServices) -> Self {
         Self {
-            clients: ClientMap::default(),
             services,
             next_id: 0,
         }
-    }
-
-    /// Get a reference to the client map
-    pub fn clients(&self) -> ClientMap {
-        ClientMap::clone(&self.clients)
-    }
-
-    /// Get a reference to the shared services
-    #[allow(dead_code)]
-    pub fn services(&self) -> &SharedServices {
-        &self.services
     }
 }
 
@@ -45,6 +31,6 @@ impl russh::server::Server for Server {
 
         println!("[{}] New client connected from {:?}", client_id, addr);
 
-        ClientHandler::new(client_id, self.clients(), self.services.clone(), addr)
+        ClientHandler::new(client_id, self.services.clone(), addr)
     }
 }

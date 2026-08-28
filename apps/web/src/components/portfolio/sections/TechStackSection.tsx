@@ -1,11 +1,17 @@
 import { ChevronDown, Minimize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { TECH_STACK } from '@/lib/data';
+import { TECH_CATEGORY_LABELS, TECH_STACK } from '@/lib/data';
 import { useTechExpanded, useTrack } from '@/lib/portfolio-context';
-import type { TechItem } from '@/lib/types';
+import type { TechCategory, TechItem } from '@/lib/types';
 import { Section } from '../Section';
 
-function TechCategory({ title, items }: { title: string; items: TechItem[] }) {
+function TechCategoryGroup({
+    title,
+    items,
+}: {
+    title: string;
+    items: TechItem[];
+}) {
     return (
         <div className='mb-6 last:mb-0'>
             <h4 className='text-xs uppercase text-zinc-400 font-bold tracking-wider mb-3'>
@@ -36,6 +42,26 @@ function TechCategory({ title, items }: { title: string; items: TechItem[] }) {
     );
 }
 
+function TechLogos({ items }: { items: TechItem[] }) {
+    return (
+        <>
+            {items.map((item) => (
+                <div
+                    key={item.name}
+                    className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
+                    title={item.name}
+                >
+                    <img
+                        src={item.icon}
+                        alt={item.name}
+                        className='w-8 h-8 md:w-10 md:h-10 object-contain'
+                    />
+                </div>
+            ))}
+        </>
+    );
+}
+
 function ScrollingTechLogos() {
     const allTechItems = [
         ...TECH_STACK.languages,
@@ -46,40 +72,17 @@ function ScrollingTechLogos() {
     ].filter((item) => item.icon);
 
     return (
-        <div className='flex flex-col'>
-            <div className='relative w-full overflow-hidden py-8'>
-                {/* Gradient Masks */}
-                <div className='absolute left-0 top-0 bottom-0 w-8 md:w-16 bg-linear-to-r from-zinc-50 to-transparent z-10 pointer-events-none' />
-                <div className='absolute right-0 top-0 bottom-0 w-8 md:w-16 bg-linear-to-l from-zinc-50 to-transparent z-10 pointer-events-none' />
+        <div className='relative w-full overflow-hidden py-8'>
+            {/* Gradient Masks */}
+            <div className='absolute left-0 top-0 bottom-0 w-8 md:w-16 bg-linear-to-r from-zinc-50 to-transparent z-10 pointer-events-none' />
+            <div className='absolute right-0 top-0 bottom-0 w-8 md:w-16 bg-linear-to-l from-zinc-50 to-transparent z-10 pointer-events-none' />
 
-                {/* The scrolling container */}
-                <div className='flex gap-12 animate-scroll w-max items-center pl-4 py-2'>
-                    {allTechItems.map((item) => (
-                        <div
-                            key={item.name}
-                            className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
-                            title={item.name}
-                        >
-                            <img
-                                src={item.icon}
-                                alt={item.name}
-                                className='w-8 h-8 md:w-10 md:h-10 object-contain'
-                            />
-                        </div>
-                    ))}
-                    {allTechItems.map((item) => (
-                        <div
-                            key={`${item.name}-2`}
-                            className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
-                            title={item.name}
-                        >
-                            <img
-                                src={item.icon}
-                                alt={item.name}
-                                className='w-8 h-8 md:w-10 md:h-10 object-contain'
-                            />
-                        </div>
-                    ))}
+            {/* The scrolling container. The list is rendered twice so the
+                marquee loops seamlessly; the second copy is decorative. */}
+            <div className='flex gap-12 animate-scroll w-max items-center pl-4 py-2'>
+                <TechLogos items={allTechItems} />
+                <div className='flex gap-12 items-center' aria-hidden='true'>
+                    <TechLogos items={allTechItems} />
                 </div>
             </div>
         </div>
@@ -112,17 +115,15 @@ function ExpandedTechView() {
                 </Button>
             </div>
             <div className='space-y-2'>
-                <TechCategory title='Languages' items={TECH_STACK.languages} />
-                <TechCategory
-                    title='Backend & API'
-                    items={TECH_STACK.backend}
-                />
-                <TechCategory title='Databases' items={TECH_STACK.databases} />
-                <TechCategory
-                    title='Cloud & DevOps'
-                    items={TECH_STACK.cloudDevOps}
-                />
-                <TechCategory title='Frontend' items={TECH_STACK.frontend} />
+                {(Object.keys(TECH_CATEGORY_LABELS) as TechCategory[]).map(
+                    (key) => (
+                        <TechCategoryGroup
+                            key={key}
+                            title={TECH_CATEGORY_LABELS[key]}
+                            items={TECH_STACK[key]}
+                        />
+                    ),
+                )}
             </div>
         </div>
     );
