@@ -34,7 +34,7 @@ export const TrackEventInput = type({
 export type EventType = typeof TrackEventInput.infer.eventType;
 
 export const trackEvent = createServerFn({ method: 'POST' })
-    .inputValidator(TrackEventInput)
+    .validator(TrackEventInput)
     .handler(async ({ data }) => {
         try {
             await getDb()

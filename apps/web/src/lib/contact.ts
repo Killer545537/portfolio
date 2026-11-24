@@ -25,7 +25,7 @@ const FROM =
     process.env.RESEND_FROM || 'Srijan Mahajan <onboarding@resend.dev>';
 
 export const submitContact = createServerFn({ method: 'POST' })
-    .inputValidator(ContactInput)
+    .validator(ContactInput)
     .handler(async ({ data }) => {
         try {
             // Store contact in database
