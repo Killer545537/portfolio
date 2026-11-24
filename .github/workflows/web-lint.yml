@@ -1,0 +1,33 @@
+name: web / lint
+
+on:
+  push:
+    branches: [dev]
+    paths: ["apps/web/**", "me.toml", ".github/workflows/web-lint.yml"]
+  pull_request:
+    paths: ["apps/web/**", "me.toml", ".github/workflows/web-lint.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - run: bun install --frozen-lockfile
+      # Lint rules + organize-imports assist; formatting has its own workflow.
+      - name: Biome
+        run: bunx biome check --formatter-enabled=false --reporter=github
+      - name: Typecheck
+        run: bunx tsc --noEmit

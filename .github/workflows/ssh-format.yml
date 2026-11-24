@@ -1,0 +1,31 @@
+name: ssh / format
+
+on:
+  push:
+    branches: [dev]
+    paths: ["apps/ssh/**", ".github/workflows/ssh-format.yml"]
+  pull_request:
+    paths: ["apps/ssh/**", ".github/workflows/ssh-format.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # rustup only picks up apps/ssh/rust-toolchain.toml from inside this dir.
+        working-directory: apps/ssh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned toolchain
+        run: rustup toolchain install
+      - run: cargo fmt --check

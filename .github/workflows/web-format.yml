@@ -1,0 +1,29 @@
+name: web / format
+
+on:
+  push:
+    branches: [dev]
+    paths: ["apps/web/**", ".github/workflows/web-format.yml"]
+  pull_request:
+    paths: ["apps/web/**", ".github/workflows/web-format.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.5
+      - run: bun install --frozen-lockfile
+      - run: bunx biome format --reporter=github

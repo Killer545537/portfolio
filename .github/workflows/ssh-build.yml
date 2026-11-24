@@ -1,0 +1,34 @@
+name: ssh / build
+
+on:
+  push:
+    branches: [dev]
+    paths: ["apps/ssh/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ssh-build.yml"]
+  pull_request:
+    paths: ["apps/ssh/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ssh-build.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # rustup only picks up apps/ssh/rust-toolchain.toml from inside this dir.
+        working-directory: apps/ssh
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install pinned toolchain
+        run: rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "apps/ssh -> ../../target"
+      - run: cargo build --release --locked
