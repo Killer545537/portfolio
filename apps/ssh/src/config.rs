@@ -124,7 +124,9 @@ fn write_host_key(path: &Path, key: &PrivateKey) -> Result<()> {
         std::fs::create_dir_all(parent).context("creating host key directory")?;
     }
 
-    let pem = key.to_openssh(LineEnding::LF).context("encoding host key")?;
+    let pem = key
+        .to_openssh(LineEnding::LF)
+        .context("encoding host key")?;
     std::fs::write(path, pem.as_bytes()).context("writing host key file")?;
 
     // A host private key readable by anyone else on the box is not a host key.

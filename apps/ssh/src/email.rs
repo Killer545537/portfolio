@@ -217,7 +217,10 @@ mod tests {
     fn renders_the_shared_copy_and_site() {
         let html = render("Ada");
 
-        assert!(html.contains("Hi Ada,"), "greeting should interpolate the name");
+        assert!(
+            html.contains("Hi Ada,"),
+            "greeting should interpolate the name"
+        );
         assert!(
             html.contains("example.test"),
             "footer should interpolate the site"

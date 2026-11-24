@@ -6,7 +6,7 @@
 # ==========================================
 # Prebuilt cargo-chef image - avoids compiling cargo-chef from source on every
 # build the way `cargo install cargo-chef` did.
-FROM lukemathwalker/cargo-chef:latest-rust-alpine AS chef
+FROM lukemathwalker/cargo-chef:latest-rust-1.100.0-alpine AS chef
 # musl-dev provides the C toolchain aws-lc-sys builds against. The project is
 # rustls-only (no openssl-sys anywhere in Cargo.lock), so the OpenSSL packages
 # and OPENSSL_STATIC that used to live here were dead weight.
