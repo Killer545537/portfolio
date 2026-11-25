@@ -51,9 +51,12 @@ function TechLogos({ items }: { items: TechItem[] }) {
                     className='shrink-0 transition-all duration-300 grayscale opacity-50 group-hover:grayscale-0 group-hover:opacity-100 transform group-hover:scale-110'
                     title={item.name}
                 >
+                    {/* Low priority also stops React's SSR from hoisting a
+                        <link rel=preload> per logo ahead of the stylesheet. */}
                     <img
                         src={item.icon}
                         alt={item.name}
+                        fetchPriority='low'
                         className='w-8 h-8 md:w-10 md:h-10 object-contain'
                     />
                 </div>

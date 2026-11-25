@@ -1,4 +1,5 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useEffect, useState } from 'react';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { INTERESTS, PROFILE } from '@/lib/data';
 import { GitHubHeatmap } from '../GitHubHeatmap';
@@ -28,18 +29,33 @@ export function ProfileSection() {
 function ProfileHeader() {
     return (
         <div className='flex flex-col items-start text-left' id='profile'>
+            {/* A plain <img> rather than AvatarImage, which only swaps the
+                image in after a client-side load and so leaves the prerendered
+                HTML with initials. The WebP is the 800px original cut to 160px
+                (2x the 80px display size): regenerate it alongside the JPG. */}
             <Avatar className='w-20 h-20 mb-6 ring-2 ring-zinc-50 shadow-lg shadow-zinc-100'>
-                <AvatarImage
-                    src={PROFILE.avatar}
-                    alt={PROFILE.name}
-                    className='object-cover'
-                />
-                <AvatarFallback>
-                    {PROFILE.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')}
-                </AvatarFallback>
+                {PROFILE.avatar ? (
+                    <picture className='contents'>
+                        <source
+                            type='image/webp'
+                            srcSet={PROFILE.avatar.replace(/\.\w+$/, '.webp')}
+                        />
+                        <img
+                            src={PROFILE.avatar}
+                            alt={PROFILE.name}
+                            width={80}
+                            height={80}
+                            className='rounded-full aspect-square size-full object-cover'
+                        />
+                    </picture>
+                ) : (
+                    <AvatarFallback>
+                        {PROFILE.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')}
+                    </AvatarFallback>
+                )}
             </Avatar>
 
             <h1 className='text-5xl font-bold tracking-tight text-zinc-900 mb-2'>
@@ -97,11 +113,24 @@ function InterestsSection() {
     );
 }
 
+/**
+ * The page is prerendered, so the first client render must show the year baked
+ * into the HTML or hydration fails; an effect then moves it on if the build is
+ * from an earlier year.
+ */
+function useCurrentYear(): number {
+    const [year, setYear] = useState(__BUILD_YEAR__);
+    useEffect(() => setYear(new Date().getFullYear()), []);
+    return year;
+}
+
 function ProfileFooter() {
+    const year = useCurrentYear();
+
     return (
         <div className='hidden lg:block pt-8'>
             <p className='text-sm text-zinc-300'>
-                © {new Date().getFullYear()} {PROFILE.name}
+                © {year} {PROFILE.name}
             </p>
         </div>
     );
