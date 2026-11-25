@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::OptionalDatabase;
 use crate::email::OptionalEmailClient;
+use crate::server::SessionPermit;
 use crate::ui;
 
 /// Shared services for all handlers
@@ -42,7 +43,6 @@ enum ContactOutcome {
 }
 
 /// Represents a connected SSH client session
-#[derive(Clone)]
 pub struct ClientHandler {
     /// Shared services (database, email)
     services: SharedServices,
@@ -58,11 +58,19 @@ pub struct ClientHandler {
     input_buffer: String,
     /// Current input state
     input_state: InputState,
+    /// Slot under the concurrent-session cap, released when the handler drops.
+    /// `None` means the server was full and authentication will be refused.
+    permit: Option<SessionPermit>,
 }
 
 impl ClientHandler {
     /// Create a new client handler
-    pub fn new(id: usize, services: SharedServices, client_addr: Option<SocketAddr>) -> Self {
+    pub fn new(
+        id: usize,
+        services: SharedServices,
+        client_addr: Option<SocketAddr>,
+        permit: Option<SessionPermit>,
+    ) -> Self {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_or(0, |d| d.as_secs());
@@ -76,6 +84,7 @@ impl ClientHandler {
             username: None,
             input_buffer: String::new(),
             input_state: InputState::Command,
+            permit,
         }
     }
 
@@ -307,6 +316,16 @@ impl russh::server::Handler for ClientHandler {
     }
 
     async fn auth_none(&mut self, user: &str) -> Result<Auth, Self::Error> {
+        if self.permit.is_none() {
+            println!("[{}] Rejecting '{}': session limit reached", self.id, user);
+            // An empty method set tells the client there is nothing else to
+            // try, so it disconnects instead of cycling through its keys.
+            return Ok(Auth::Reject {
+                proceed_with_methods: Some(russh::MethodSet::empty()),
+                partial_success: false,
+            });
+        }
+
         self.username = Some(user.to_string());
         println!("[{}] User '{}' authenticated (none auth)", self.id, user);
         Ok(Auth::Accept)
