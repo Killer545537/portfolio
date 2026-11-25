@@ -144,6 +144,11 @@ impl OptionalDatabase {
         let Some(db) = self.db.clone() else {
             return;
         };
+        // The disconnect is sent from `Drop`, which can run while the runtime
+        // shuts down; `tokio::spawn` would panic there.
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
         let Ok(permit) = Arc::clone(&db.inflight).try_acquire_owned() else {
             let dropped = db.dropped.fetch_add(1, Ordering::Relaxed) + 1;
             if dropped.is_power_of_two() {
@@ -152,7 +157,7 @@ impl OptionalDatabase {
             return;
         };
         let session_id = session_id.to_owned();
-        tokio::spawn(async move {
+        runtime.spawn(async move {
             // Held until the insert finishes.
             let _permit = permit;
             if let Err(e) = db

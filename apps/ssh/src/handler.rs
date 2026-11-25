@@ -61,6 +61,10 @@ pub struct ClientHandler {
     /// Slot under the concurrent-session cap, released when the handler drops.
     /// `None` means the server was full and authentication will be refused.
     permit: Option<SessionPermit>,
+    /// Whether a connect event was recorded. The disconnect on `Drop` is only
+    /// written to pair with one, so rejected or shell-less connections leave
+    /// no orphan rows.
+    connected: bool,
 }
 
 impl ClientHandler {
@@ -85,16 +89,25 @@ impl ClientHandler {
             input_buffer: String::new(),
             input_state: InputState::Command,
             permit,
+            connected: false,
         }
     }
 
-    /// Send data to the client's channel
-    async fn send_welcome(&self, channel: ChannelId, session: &mut Session) -> Result<()> {
-        // Track connection
+    /// Record the connect event, once per connection.
+    fn record_connect(&mut self) {
+        if self.connected {
+            return;
+        }
+        self.connected = true;
         let addr_str = self.client_addr.map(|a| a.to_string());
         self.services
             .db
             .track_connect(&self.session_id, addr_str.as_deref());
+    }
+
+    /// Send data to the client's channel
+    async fn send_welcome(&mut self, channel: ChannelId, session: &mut Session) -> Result<()> {
+        self.record_connect();
 
         let welcome = ui::render_welcome_message();
         session.data(channel, welcome.into_bytes())?;
@@ -153,8 +166,8 @@ impl ClientHandler {
         match cmd.as_str() {
             "q" | "quit" | "exit" => {
                 println!("[{}] Client requested disconnect", self.id);
-                // `channel_close` records the disconnect; doing it here too
-                // would write the event twice for every clean exit.
+                // Dropping the handler records the disconnect; doing it here
+                // too would write the event twice for every clean exit.
                 self.send_message(channel, &ui::render_goodbye(), session)?;
                 return Ok(true); // Signal to close the channel
             }
@@ -379,11 +392,8 @@ impl russh::server::Handler for ClientHandler {
 
         // Non-interactive `ssh host <cmd>`: print the banner and hang up.
         // Leaving the channel open stranded these sessions until the inactivity
-        // timeout fired an hour later.
-        let addr_str = self.client_addr.map(|a| a.to_string());
-        self.services
-            .db
-            .track_connect(&self.session_id, addr_str.as_deref());
+        // timeout fired.
+        self.record_connect();
         self.send_message(channel, &ui::render_welcome_message(), session)?;
         self.send_message(channel, &ui::render_help(), session)?;
         session.exit_status_request(channel, 0)?;
@@ -416,7 +426,7 @@ impl russh::server::Handler for ClientHandler {
                     self.send_message(channel, "^C\r\n", session)?;
                     self.send_prompt(channel, session)?;
                 }
-                // Ctrl+D - exit. `channel_close` records the disconnect.
+                // Ctrl+D - exit. Dropping the handler records the disconnect.
                 LineAction::Eof => {
                     println!("[{}] Client sent Ctrl+D", self.id);
                     self.send_message(channel, &ui::render_goodbye(), session)?;
@@ -435,12 +445,20 @@ impl russh::server::Handler for ClientHandler {
         _session: &mut Session,
     ) -> Result<(), Self::Error> {
         println!("[{}] Channel {:?} closed", self.id, channel);
-
-        // The single place a disconnect is recorded: it runs for clean exits
-        // and dropped connections alike.
-        self.services.db.track_disconnect(&self.session_id);
-
         Ok(())
+    }
+}
+
+/// The single place a disconnect is recorded. `channel_close` only fires when
+/// the client closes the channel, which it doesn't after the server hangs up
+/// (quit, Ctrl+D, exec) or when the TCP connection just drops; the handler is
+/// dropped when the connection ends, however it ends.
+impl Drop for ClientHandler {
+    fn drop(&mut self) {
+        println!("[{}] Client disconnected", self.id);
+        if self.connected {
+            self.services.db.track_disconnect(&self.session_id);
+        }
     }
 }
 
