@@ -374,15 +374,12 @@ impl russh::server::Handler for ClientHandler {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        for &byte in data {
-            match byte {
-                // Enter key (CR or LF)
-                13 | 10 => {
-                    // Move to new line
-                    self.send_message(channel, "\r\n", session)?;
-
-                    // Process the buffered input
-                    let input = std::mem::take(&mut self.input_buffer);
+        // Echo for a whole packet goes out as one message; `edit_line` flushes
+        // it before anything else is written, so wire ordering is unchanged.
+        for action in edit_line(&mut self.input_buffer, data) {
+            match action {
+                LineAction::Echo(bytes) => session.data(channel, bytes)?,
+                LineAction::Submit(input) => {
                     let should_close = self.process_input(channel, &input, session).await?;
 
                     if should_close {
@@ -390,52 +387,19 @@ impl russh::server::Handler for ClientHandler {
                         return Ok(());
                     }
                 }
-                // Backspace or Delete (ASCII 8 or 127)
-                8 | 127 => {
-                    if !self.input_buffer.is_empty() {
-                        self.input_buffer.pop();
-                        // Send backspace sequence: move back, overwrite with space, move back again
-                        self.send_message(channel, "\x08 \x08", session)?;
-                    }
-                }
                 // Ctrl+C - cancel current input/form
-                3 => {
-                    self.input_buffer.clear();
+                LineAction::Interrupt => {
                     self.cancel_form(channel, session)?;
                     self.send_message(channel, "^C\r\n", session)?;
                     self.send_prompt(channel, session)?;
                 }
                 // Ctrl+D - exit. `channel_close` records the disconnect.
-                4 => {
+                LineAction::Eof => {
                     println!("[{}] Client sent Ctrl+D", self.id);
                     self.send_message(channel, &ui::render_goodbye(), session)?;
                     session.close(channel)?;
                     return Ok(());
                 }
-                // Ctrl+U - clear line
-                21 => {
-                    // Clear the current line by sending backspaces
-                    let clear_len = self.input_buffer.len();
-                    self.input_buffer.clear();
-                    for _ in 0..clear_len {
-                        self.send_message(channel, "\x08 \x08", session)?;
-                    }
-                }
-                // Regular printable characters (ASCII 32-126)
-                // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
-                // continuation bytes and are dropped rather than mangled;
-                // buffer the bytes and decode on Enter if that ever matters.
-                32..=126 => {
-                    self.input_buffer.push(byte as char);
-                    // Echo the character back to the client
-                    self.send_message(channel, &(byte as char).to_string(), session)?;
-                }
-                // Escape sequences (arrows, etc.) - ignore for now
-                27 => {
-                    // Start of escape sequence, we'll ignore it
-                }
-                // Ignore other control characters
-                _ => {}
             }
         }
 
@@ -455,6 +419,89 @@ impl russh::server::Handler for ClientHandler {
 
         Ok(())
     }
+}
+
+/// What the handler must do with one packet of keyboard input.
+#[derive(Debug, PartialEq, Eq)]
+enum LineAction {
+    /// Terminal echo to send as-is.
+    Echo(Vec<u8>),
+    /// Enter was pressed: process this line.
+    Submit(String),
+    /// Ctrl+C: the line buffer is already cleared.
+    Interrupt,
+    /// Ctrl+D: close the session; later bytes are dropped.
+    Eof,
+}
+
+/// Apply raw input bytes to the line buffer.
+///
+/// Echo is accumulated across the whole packet and emitted as a single
+/// `Echo` right before any other action (and at the end), so a paste costs one
+/// SSH message instead of one per byte, while the client still sees the echo
+/// before the output of the line it submitted.
+fn edit_line(buffer: &mut String, data: &[u8]) -> Vec<LineAction> {
+    /// Flush pending echo, then queue `action` after it.
+    fn flush_then(actions: &mut Vec<LineAction>, echo: &mut Vec<u8>, action: LineAction) {
+        if !echo.is_empty() {
+            actions.push(LineAction::Echo(std::mem::take(echo)));
+        }
+        actions.push(action);
+    }
+
+    let mut actions = Vec::new();
+    let mut echo = Vec::new();
+
+    for &byte in data {
+        match byte {
+            // Enter key (CR or LF): move to a new line, then process the buffer
+            13 | 10 => {
+                echo.extend_from_slice(b"\r\n");
+                let line = std::mem::take(buffer);
+                flush_then(&mut actions, &mut echo, LineAction::Submit(line));
+            }
+            // Backspace or Delete (ASCII 8 or 127)
+            8 | 127 => {
+                if buffer.pop().is_some() {
+                    // Move back, overwrite with space, move back again
+                    echo.extend_from_slice(b"\x08 \x08");
+                }
+            }
+            // Ctrl+C - cancel current input/form
+            3 => {
+                buffer.clear();
+                flush_then(&mut actions, &mut echo, LineAction::Interrupt);
+            }
+            // Ctrl+D - exit
+            4 => {
+                flush_then(&mut actions, &mut echo, LineAction::Eof);
+                return actions;
+            }
+            // Ctrl+U - clear the current line by sending backspaces
+            21 => {
+                for _ in 0..buffer.len() {
+                    echo.extend_from_slice(b"\x08 \x08");
+                }
+                buffer.clear();
+            }
+            // Regular printable characters (ASCII 32-126)
+            // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
+            // continuation bytes and are dropped rather than mangled;
+            // buffer the bytes and decode on Enter if that ever matters.
+            32..=126 => {
+                buffer.push(byte as char);
+                // Echo the character back to the client
+                echo.push(byte);
+            }
+            // Escape sequences (arrows, etc.) and other control characters are ignored
+            _ => {}
+        }
+    }
+
+    if !echo.is_empty() {
+        actions.push(LineAction::Echo(echo));
+    }
+    actions
 }
 
 /// Basic email validation
@@ -505,6 +552,28 @@ mod tests {
         assert!(!is_valid_email("user@domain"));
         assert!(!is_valid_email("user@.com"));
         assert!(!is_valid_email("user@domain."));
+    }
+
+    /// A paste is echoed in one message that precedes the submitted line, and
+    /// Ctrl+U clears the line with one message rather than one per character.
+    #[test]
+    fn edit_line_batches_echo_and_keeps_ordering() {
+        let mut buffer = String::new();
+        assert_eq!(
+            edit_line(&mut buffer, b"help\rab"),
+            vec![
+                LineAction::Echo(b"help\r\n".to_vec()),
+                LineAction::Submit("help".into()),
+                LineAction::Echo(b"ab".to_vec()),
+            ]
+        );
+        assert_eq!(buffer, "ab");
+
+        assert_eq!(
+            edit_line(&mut buffer, &[21]),
+            vec![LineAction::Echo(b"\x08 \x08\x08 \x08".to_vec())]
+        );
+        assert!(buffer.is_empty());
     }
 
     /// The bug this replaced: `&command[..50]` panicked whenever byte 50 fell
