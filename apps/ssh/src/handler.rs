@@ -444,6 +444,11 @@ impl russh::server::Handler for ClientHandler {
     }
 }
 
+/// Longest line the editor accepts. Names, emails and commands fit easily;
+/// anything past it is neither buffered nor echoed, so a client can't grow
+/// the buffer without bound by never pressing Enter.
+const MAX_LINE_LEN: usize = 256;
+
 /// What the handler must do with one packet of keyboard input.
 #[derive(Debug, PartialEq, Eq)]
 enum LineAction {
@@ -511,12 +516,13 @@ fn edit_line(buffer: &mut String, data: &[u8]) -> Vec<LineAction> {
             // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
             // continuation bytes and are dropped rather than mangled;
             // buffer the bytes and decode on Enter if that ever matters.
-            32..=126 => {
+            32..=126 if buffer.len() < MAX_LINE_LEN => {
                 buffer.push(byte as char);
                 // Echo the character back to the client
                 echo.push(byte);
             }
-            // Escape sequences (arrows, etc.) and other control characters are ignored
+            // Printable bytes past MAX_LINE_LEN, escape sequences (arrows,
+            // etc.) and other control characters are ignored
             _ => {}
         }
     }
@@ -597,6 +603,15 @@ mod tests {
             vec![LineAction::Echo(b"\x08 \x08\x08 \x08".to_vec())]
         );
         assert!(buffer.is_empty());
+    }
+
+    /// Input past MAX_LINE_LEN is neither buffered nor echoed.
+    #[test]
+    fn edit_line_caps_line_length() {
+        let mut buffer = String::new();
+        let actions = edit_line(&mut buffer, &[b'a'; MAX_LINE_LEN + 10]);
+        assert_eq!(buffer.len(), MAX_LINE_LEN);
+        assert_eq!(actions, vec![LineAction::Echo(vec![b'a'; MAX_LINE_LEN])]);
     }
 
     /// The bug this replaced: `&command[..50]` panicked whenever byte 50 fell
