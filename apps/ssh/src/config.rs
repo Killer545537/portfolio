@@ -1,7 +1,9 @@
 use anyhow::{Context, Result};
 use russh::keys::ssh_key::LineEnding;
 use russh::keys::{Algorithm, PrivateKey};
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -14,6 +16,14 @@ pub const DEFAULT_BIND_ADDR: &str = "0.0.0.0";
 /// Default host key location, relative to the working directory
 pub const DEFAULT_HOST_KEY_FILE: &str = "ssh_host_key";
 
+/// Default idle time before a session is dropped. Long enough to read a page
+/// of the portfolio, short enough that abandoned terminals don't pile up.
+pub const DEFAULT_INACTIVITY_TIMEOUT_SECS: u64 = 600;
+
+/// Default cap on concurrent connections. Everyone is let in without
+/// credentials, so this is what bounds memory and DB pool pressure.
+pub const DEFAULT_MAX_SESSIONS: usize = 100;
+
 /// Server configuration options
 #[derive(Debug, Clone)]
 pub struct ServerConfig {
@@ -22,6 +32,7 @@ pub struct ServerConfig {
     pub host_key_file: PathBuf,
     pub inactivity_timeout_secs: u64,
     pub auth_rejection_time_secs: u64,
+    pub max_sessions: usize,
 }
 
 impl Default for ServerConfig {
@@ -30,8 +41,9 @@ impl Default for ServerConfig {
             bind_addr: DEFAULT_BIND_ADDR.to_string(),
             port: DEFAULT_PORT,
             host_key_file: PathBuf::from(DEFAULT_HOST_KEY_FILE),
-            inactivity_timeout_secs: 3600,
+            inactivity_timeout_secs: DEFAULT_INACTIVITY_TIMEOUT_SECS,
             auth_rejection_time_secs: 3,
+            max_sessions: DEFAULT_MAX_SESSIONS,
         }
     }
 }
@@ -41,17 +53,14 @@ impl ServerConfig {
     pub fn from_env() -> Self {
         let defaults = Self::default();
 
-        let port = match std::env::var("SSH_PORT") {
-            Ok(raw) => raw.parse().unwrap_or_else(|_| {
-                eprintln!("⚠ SSH_PORT='{raw}' is not a valid port, using {DEFAULT_PORT}");
-                defaults.port
-            }),
-            Err(_) => defaults.port,
-        };
-
         Self {
             bind_addr: std::env::var("SSH_BIND_ADDR").unwrap_or(defaults.bind_addr),
-            port,
+            port: env_or("SSH_PORT", defaults.port),
+            inactivity_timeout_secs: env_or(
+                "SSH_INACTIVITY_TIMEOUT_SECS",
+                defaults.inactivity_timeout_secs,
+            ),
+            max_sessions: env_or("SSH_MAX_SESSIONS", defaults.max_sessions),
             host_key_file: std::env::var("SSH_HOST_KEY_FILE")
                 .map(PathBuf::from)
                 .unwrap_or(defaults.host_key_file),
@@ -70,11 +79,26 @@ impl ServerConfig {
             inactivity_timeout: Some(Duration::from_secs(self.inactivity_timeout_secs)),
             auth_rejection_time: Duration::from_secs(self.auth_rejection_time_secs),
             auth_rejection_time_initial: Some(Duration::from_secs(0)),
+            // `auth_none` decides on the first attempt; anything past a few
+            // more is a client probing, not a visitor.
+            max_auth_attempts: 3,
             keys: vec![load_or_create_host_key(&self.host_key_file)],
             ..Default::default()
         };
 
         Ok(Arc::new(config))
+    }
+}
+
+/// Parse `name` from the environment, falling back to `default` (loudly when
+/// the variable is set but unparseable).
+fn env_or<T: FromStr + Display>(name: &str, default: T) -> T {
+    match std::env::var(name) {
+        Ok(raw) => raw.parse().unwrap_or_else(|_| {
+            eprintln!("⚠ {name}='{raw}' is not valid, using {default}");
+            default
+        }),
+        Err(_) => default,
     }
 }
 

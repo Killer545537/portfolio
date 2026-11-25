@@ -6,9 +6,11 @@ use russh::{
     server::{Auth, ChannelOpenHandle, Msg, Session},
 };
 use std::net::SocketAddr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::OptionalDatabase;
 use crate::email::OptionalEmailClient;
+use crate::server::SessionPermit;
 use crate::ui;
 
 /// Shared services for all handlers
@@ -41,7 +43,6 @@ enum ContactOutcome {
 }
 
 /// Represents a connected SSH client session
-#[derive(Clone)]
 pub struct ClientHandler {
     /// Shared services (database, email)
     services: SharedServices,
@@ -57,12 +58,27 @@ pub struct ClientHandler {
     input_buffer: String,
     /// Current input state
     input_state: InputState,
+    /// Slot under the concurrent-session cap, released when the handler drops.
+    /// `None` means the server was full and authentication will be refused.
+    permit: Option<SessionPermit>,
+    /// Whether a connect event was recorded. The disconnect on `Drop` is only
+    /// written to pair with one, so rejected or shell-less connections leave
+    /// no orphan rows.
+    connected: bool,
 }
 
 impl ClientHandler {
     /// Create a new client handler
-    pub fn new(id: usize, services: SharedServices, client_addr: Option<SocketAddr>) -> Self {
-        let session_id = format!("ssh-{}-{}", id, chrono::Utc::now().timestamp());
+    pub fn new(
+        id: usize,
+        services: SharedServices,
+        client_addr: Option<SocketAddr>,
+        permit: Option<SessionPermit>,
+    ) -> Self {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let session_id = format!("ssh-{id}-{timestamp}");
 
         Self {
             services,
@@ -72,17 +88,26 @@ impl ClientHandler {
             username: None,
             input_buffer: String::new(),
             input_state: InputState::Command,
+            permit,
+            connected: false,
         }
     }
 
-    /// Send data to the client's channel
-    async fn send_welcome(&self, channel: ChannelId, session: &mut Session) -> Result<()> {
-        // Track connection
+    /// Record the connect event, once per connection.
+    fn record_connect(&mut self) {
+        if self.connected {
+            return;
+        }
+        self.connected = true;
         let addr_str = self.client_addr.map(|a| a.to_string());
         self.services
             .db
-            .track_connect(&self.session_id, addr_str.as_deref())
-            .await;
+            .track_connect(&self.session_id, addr_str.as_deref());
+    }
+
+    /// Send data to the client's channel
+    async fn send_welcome(&mut self, channel: ChannelId, session: &mut Session) -> Result<()> {
+        self.record_connect();
 
         let welcome = ui::render_welcome_message();
         session.data(channel, welcome.into_bytes())?;
@@ -135,14 +160,14 @@ impl ClientHandler {
 
         // Track command analytics (non-empty commands)
         if !cmd.is_empty() {
-            self.services.db.track_command(&self.session_id, &cmd).await;
+            self.services.db.track_command(&self.session_id, &cmd);
         }
 
         match cmd.as_str() {
             "q" | "quit" | "exit" => {
                 println!("[{}] Client requested disconnect", self.id);
-                // `channel_close` records the disconnect; doing it here too
-                // would write the event twice for every clean exit.
+                // Dropping the handler records the disconnect; doing it here
+                // too would write the event twice for every clean exit.
                 self.send_message(channel, &ui::render_goodbye(), session)?;
                 return Ok(true); // Signal to close the channel
             }
@@ -254,7 +279,7 @@ impl ClientHandler {
     /// actually happened. Claiming an email was sent when it was not is worse
     /// than admitting the address was only recorded.
     async fn submit_contact(&self, name: &str, email: &str) -> ContactOutcome {
-        self.services.db.track_contact(&self.session_id).await;
+        self.services.db.track_contact(&self.session_id);
 
         if let Err(e) = self.services.db.store_contact(email).await {
             eprintln!("[{}] Failed to store contact: {}", self.id, e);
@@ -304,6 +329,16 @@ impl russh::server::Handler for ClientHandler {
     }
 
     async fn auth_none(&mut self, user: &str) -> Result<Auth, Self::Error> {
+        if self.permit.is_none() {
+            println!("[{}] Rejecting '{}': session limit reached", self.id, user);
+            // An empty method set tells the client there is nothing else to
+            // try, so it disconnects instead of cycling through its keys.
+            return Ok(Auth::Reject {
+                proceed_with_methods: Some(russh::MethodSet::empty()),
+                partial_success: false,
+            });
+        }
+
         self.username = Some(user.to_string());
         println!("[{}] User '{}' authenticated (none auth)", self.id, user);
         Ok(Auth::Accept)
@@ -357,12 +392,8 @@ impl russh::server::Handler for ClientHandler {
 
         // Non-interactive `ssh host <cmd>`: print the banner and hang up.
         // Leaving the channel open stranded these sessions until the inactivity
-        // timeout fired an hour later.
-        let addr_str = self.client_addr.map(|a| a.to_string());
-        self.services
-            .db
-            .track_connect(&self.session_id, addr_str.as_deref())
-            .await;
+        // timeout fired.
+        self.record_connect();
         self.send_message(channel, &ui::render_welcome_message(), session)?;
         self.send_message(channel, &ui::render_help(), session)?;
         session.exit_status_request(channel, 0)?;
@@ -376,15 +407,12 @@ impl russh::server::Handler for ClientHandler {
         data: &[u8],
         session: &mut Session,
     ) -> Result<(), Self::Error> {
-        for &byte in data {
-            match byte {
-                // Enter key (CR or LF)
-                13 | 10 => {
-                    // Move to new line
-                    self.send_message(channel, "\r\n", session)?;
-
-                    // Process the buffered input
-                    let input = std::mem::take(&mut self.input_buffer);
+        // Echo for a whole packet goes out as one message; `edit_line` flushes
+        // it before anything else is written, so wire ordering is unchanged.
+        for action in edit_line(&mut self.input_buffer, data) {
+            match action {
+                LineAction::Echo(bytes) => session.data(channel, bytes)?,
+                LineAction::Submit(input) => {
                     let should_close = self.process_input(channel, &input, session).await?;
 
                     if should_close {
@@ -392,52 +420,19 @@ impl russh::server::Handler for ClientHandler {
                         return Ok(());
                     }
                 }
-                // Backspace or Delete (ASCII 8 or 127)
-                8 | 127 => {
-                    if !self.input_buffer.is_empty() {
-                        self.input_buffer.pop();
-                        // Send backspace sequence: move back, overwrite with space, move back again
-                        self.send_message(channel, "\x08 \x08", session)?;
-                    }
-                }
                 // Ctrl+C - cancel current input/form
-                3 => {
-                    self.input_buffer.clear();
+                LineAction::Interrupt => {
                     self.cancel_form(channel, session)?;
                     self.send_message(channel, "^C\r\n", session)?;
                     self.send_prompt(channel, session)?;
                 }
-                // Ctrl+D - exit. `channel_close` records the disconnect.
-                4 => {
+                // Ctrl+D - exit. Dropping the handler records the disconnect.
+                LineAction::Eof => {
                     println!("[{}] Client sent Ctrl+D", self.id);
                     self.send_message(channel, &ui::render_goodbye(), session)?;
                     session.close(channel)?;
                     return Ok(());
                 }
-                // Ctrl+U - clear line
-                21 => {
-                    // Clear the current line by sending backspaces
-                    let clear_len = self.input_buffer.len();
-                    self.input_buffer.clear();
-                    for _ in 0..clear_len {
-                        self.send_message(channel, "\x08 \x08", session)?;
-                    }
-                }
-                // Regular printable characters (ASCII 32-126)
-                // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
-                // continuation bytes and are dropped rather than mangled;
-                // buffer the bytes and decode on Enter if that ever matters.
-                32..=126 => {
-                    self.input_buffer.push(byte as char);
-                    // Echo the character back to the client
-                    self.send_message(channel, &(byte as char).to_string(), session)?;
-                }
-                // Escape sequences (arrows, etc.) - ignore for now
-                27 => {
-                    // Start of escape sequence, we'll ignore it
-                }
-                // Ignore other control characters
-                _ => {}
             }
         }
 
@@ -450,13 +445,110 @@ impl russh::server::Handler for ClientHandler {
         _session: &mut Session,
     ) -> Result<(), Self::Error> {
         println!("[{}] Channel {:?} closed", self.id, channel);
-
-        // The single place a disconnect is recorded: it runs for clean exits
-        // and dropped connections alike.
-        self.services.db.track_disconnect(&self.session_id).await;
-
         Ok(())
     }
+}
+
+/// The single place a disconnect is recorded. `channel_close` only fires when
+/// the client closes the channel, which it doesn't after the server hangs up
+/// (quit, Ctrl+D, exec) or when the TCP connection just drops; the handler is
+/// dropped when the connection ends, however it ends.
+impl Drop for ClientHandler {
+    fn drop(&mut self) {
+        println!("[{}] Client disconnected", self.id);
+        if self.connected {
+            self.services.db.track_disconnect(&self.session_id);
+        }
+    }
+}
+
+/// Longest line the editor accepts. Names, emails and commands fit easily;
+/// anything past it is neither buffered nor echoed, so a client can't grow
+/// the buffer without bound by never pressing Enter.
+const MAX_LINE_LEN: usize = 256;
+
+/// What the handler must do with one packet of keyboard input.
+#[derive(Debug, PartialEq, Eq)]
+enum LineAction {
+    /// Terminal echo to send as-is.
+    Echo(Vec<u8>),
+    /// Enter was pressed: process this line.
+    Submit(String),
+    /// Ctrl+C: the line buffer is already cleared.
+    Interrupt,
+    /// Ctrl+D: close the session; later bytes are dropped.
+    Eof,
+}
+
+/// Apply raw input bytes to the line buffer.
+///
+/// Echo is accumulated across the whole packet and emitted as a single
+/// `Echo` right before any other action (and at the end), so a paste costs one
+/// SSH message instead of one per byte, while the client still sees the echo
+/// before the output of the line it submitted.
+fn edit_line(buffer: &mut String, data: &[u8]) -> Vec<LineAction> {
+    /// Flush pending echo, then queue `action` after it.
+    fn flush_then(actions: &mut Vec<LineAction>, echo: &mut Vec<u8>, action: LineAction) {
+        if !echo.is_empty() {
+            actions.push(LineAction::Echo(std::mem::take(echo)));
+        }
+        actions.push(action);
+    }
+
+    let mut actions = Vec::new();
+    let mut echo = Vec::new();
+
+    for &byte in data {
+        match byte {
+            // Enter key (CR or LF): move to a new line, then process the buffer
+            13 | 10 => {
+                echo.extend_from_slice(b"\r\n");
+                let line = std::mem::take(buffer);
+                flush_then(&mut actions, &mut echo, LineAction::Submit(line));
+            }
+            // Backspace or Delete (ASCII 8 or 127)
+            8 | 127 => {
+                if buffer.pop().is_some() {
+                    // Move back, overwrite with space, move back again
+                    echo.extend_from_slice(b"\x08 \x08");
+                }
+            }
+            // Ctrl+C - cancel current input/form
+            3 => {
+                buffer.clear();
+                flush_then(&mut actions, &mut echo, LineAction::Interrupt);
+            }
+            // Ctrl+D - exit
+            4 => {
+                flush_then(&mut actions, &mut echo, LineAction::Eof);
+                return actions;
+            }
+            // Ctrl+U - clear the current line by sending backspaces
+            21 => {
+                for _ in 0..buffer.len() {
+                    echo.extend_from_slice(b"\x08 \x08");
+                }
+                buffer.clear();
+            }
+            // Regular printable characters (ASCII 32-126)
+            // ponytail: ASCII-only input. Non-ASCII names arrive as UTF-8
+            // continuation bytes and are dropped rather than mangled;
+            // buffer the bytes and decode on Enter if that ever matters.
+            32..=126 if buffer.len() < MAX_LINE_LEN => {
+                buffer.push(byte as char);
+                // Echo the character back to the client
+                echo.push(byte);
+            }
+            // Printable bytes past MAX_LINE_LEN, escape sequences (arrows,
+            // etc.) and other control characters are ignored
+            _ => {}
+        }
+    }
+
+    if !echo.is_empty() {
+        actions.push(LineAction::Echo(echo));
+    }
+    actions
 }
 
 /// Basic email validation
@@ -507,6 +599,37 @@ mod tests {
         assert!(!is_valid_email("user@domain"));
         assert!(!is_valid_email("user@.com"));
         assert!(!is_valid_email("user@domain."));
+    }
+
+    /// A paste is echoed in one message that precedes the submitted line, and
+    /// Ctrl+U clears the line with one message rather than one per character.
+    #[test]
+    fn edit_line_batches_echo_and_keeps_ordering() {
+        let mut buffer = String::new();
+        assert_eq!(
+            edit_line(&mut buffer, b"help\rab"),
+            vec![
+                LineAction::Echo(b"help\r\n".to_vec()),
+                LineAction::Submit("help".into()),
+                LineAction::Echo(b"ab".to_vec()),
+            ]
+        );
+        assert_eq!(buffer, "ab");
+
+        assert_eq!(
+            edit_line(&mut buffer, &[21]),
+            vec![LineAction::Echo(b"\x08 \x08\x08 \x08".to_vec())]
+        );
+        assert!(buffer.is_empty());
+    }
+
+    /// Input past MAX_LINE_LEN is neither buffered nor echoed.
+    #[test]
+    fn edit_line_caps_line_length() {
+        let mut buffer = String::new();
+        let actions = edit_line(&mut buffer, &[b'a'; MAX_LINE_LEN + 10]);
+        assert_eq!(buffer.len(), MAX_LINE_LEN);
+        assert_eq!(actions, vec![LineAction::Echo(vec![b'a'; MAX_LINE_LEN])]);
     }
 
     /// The bug this replaced: `&command[..50]` panicked whenever byte 50 fell

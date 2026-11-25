@@ -40,7 +40,7 @@ async fn main() -> Result<()> {
     let russh_config = config.to_russh_config()?;
 
     // Create server instance with services
-    let mut server = Server::new(services);
+    let mut server = Server::new(services, config.max_sessions);
 
     // Bind to the configured address
     let bind_addr = config.bind_address();
