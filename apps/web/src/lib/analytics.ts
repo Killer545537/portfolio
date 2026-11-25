@@ -29,6 +29,9 @@ export type TrackEventInput = {
 
 const MAX_SESSION_ID_LENGTH = 64;
 const MAX_METADATA_KEY_LENGTH = 40;
+// Callers send one or two keys; without a count cap one request could still
+// write an arbitrarily large row.
+const MAX_METADATA_KEYS = 10;
 const MAX_METADATA_STRING_LENGTH = 200;
 
 function isMetadataValue(value: unknown): value is MetadataValue {
@@ -91,6 +94,11 @@ function parseTrackEventInput(input: TrackEventInput): TrackEventInput {
         }
 
         const entries = Object.entries(metadata);
+        if (entries.length > MAX_METADATA_KEYS) {
+            throw new Error(
+                `metadata may have at most ${MAX_METADATA_KEYS} keys`,
+            );
+        }
         for (const [key, entry] of entries) {
             if (key.length > MAX_METADATA_KEY_LENGTH) {
                 throw new Error(

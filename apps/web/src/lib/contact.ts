@@ -12,6 +12,11 @@ export type ContactInput = { name: string; email: string };
 // so the address needs no trimming.
 const EMAIL_PATTERN = /^[\w%+.-]+@[\d.A-Za-z-]+\.[A-Za-z]{2,}$/;
 
+// The longest address SMTP can deliver to (RFC 5321 path limit).
+const MAX_EMAIL_LENGTH = 254;
+// The name is interpolated into the confirmation email.
+const MAX_NAME_LENGTH = 100;
+
 /**
  * Hand-written rather than a schema library: components import this module to
  * call `submitContact`, so the validator ships to the browser too. The
@@ -24,10 +29,20 @@ function parseContactInput(input: ContactInput): ContactInput {
     }
 
     const { name, email } = value as Record<string, unknown>;
-    if (typeof name !== 'string' || name.trim().length === 0) {
-        throw new Error('name must be a non-empty string');
+    if (
+        typeof name !== 'string' ||
+        name.trim().length === 0 ||
+        name.trim().length > MAX_NAME_LENGTH
+    ) {
+        throw new Error(
+            `name must be a non-empty string of at most ${MAX_NAME_LENGTH} characters`,
+        );
     }
-    if (typeof email !== 'string' || !EMAIL_PATTERN.test(email)) {
+    if (
+        typeof email !== 'string' ||
+        email.length > MAX_EMAIL_LENGTH ||
+        !EMAIL_PATTERN.test(email)
+    ) {
         throw new Error('email must be an email address');
     }
 
