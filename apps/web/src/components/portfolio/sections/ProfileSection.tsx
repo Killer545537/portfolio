@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { INTERESTS, PROFILE } from '@/lib/data';
@@ -97,11 +98,24 @@ function InterestsSection() {
     );
 }
 
+/**
+ * The page is prerendered, so the first client render must show the year baked
+ * into the HTML or hydration fails; an effect then moves it on if the build is
+ * from an earlier year.
+ */
+function useCurrentYear(): number {
+    const [year, setYear] = useState(__BUILD_YEAR__);
+    useEffect(() => setYear(new Date().getFullYear()), []);
+    return year;
+}
+
 function ProfileFooter() {
+    const year = useCurrentYear();
+
     return (
         <div className='hidden lg:block pt-8'>
             <p className='text-sm text-zinc-300'>
-                © {new Date().getFullYear()} {PROFILE.name}
+                © {year} {PROFILE.name}
             </p>
         </div>
     );
