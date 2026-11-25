@@ -42,6 +42,11 @@ const config = defineConfig({
                         'cache-control': 'public, max-age=86400',
                     },
                 },
+                '/profile-photo.webp': {
+                    headers: {
+                        'cache-control': 'public, max-age=86400',
+                    },
+                },
             },
         }),
         tailwindcss(),

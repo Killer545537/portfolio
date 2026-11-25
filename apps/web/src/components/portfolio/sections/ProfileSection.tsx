@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { INTERESTS, PROFILE } from '@/lib/data';
 import { GitHubHeatmap } from '../GitHubHeatmap';
@@ -29,18 +29,33 @@ export function ProfileSection() {
 function ProfileHeader() {
     return (
         <div className='flex flex-col items-start text-left' id='profile'>
+            {/* A plain <img> rather than AvatarImage, which only swaps the
+                image in after a client-side load and so leaves the prerendered
+                HTML with initials. The WebP is the 800px original cut to 160px
+                (2x the 80px display size): regenerate it alongside the JPG. */}
             <Avatar className='w-20 h-20 mb-6 ring-2 ring-zinc-50 shadow-lg shadow-zinc-100'>
-                <AvatarImage
-                    src={PROFILE.avatar}
-                    alt={PROFILE.name}
-                    className='object-cover'
-                />
-                <AvatarFallback>
-                    {PROFILE.name
-                        .split(' ')
-                        .map((n) => n[0])
-                        .join('')}
-                </AvatarFallback>
+                {PROFILE.avatar ? (
+                    <picture className='contents'>
+                        <source
+                            type='image/webp'
+                            srcSet={PROFILE.avatar.replace(/\.\w+$/, '.webp')}
+                        />
+                        <img
+                            src={PROFILE.avatar}
+                            alt={PROFILE.name}
+                            width={80}
+                            height={80}
+                            className='rounded-full aspect-square size-full object-cover'
+                        />
+                    </picture>
+                ) : (
+                    <AvatarFallback>
+                        {PROFILE.name
+                            .split(' ')
+                            .map((n) => n[0])
+                            .join('')}
+                    </AvatarFallback>
+                )}
             </Avatar>
 
             <h1 className='text-5xl font-bold tracking-tight text-zinc-900 mb-2'>
