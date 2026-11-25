@@ -89,37 +89,6 @@ impl Database {
 
         Ok(())
     }
-
-    /// Track a command execution
-    pub async fn track_command(&self, session_id: &str, command: &str) -> anyhow::Result<()> {
-        let metadata = serde_json::json!({ "command": command });
-        self.track_event(EventType::Command, Some(session_id), Some(metadata))
-            .await
-    }
-
-    /// Track a connection event
-    pub async fn track_connect(
-        &self,
-        session_id: &str,
-        client_addr: Option<&str>,
-    ) -> anyhow::Result<()> {
-        let metadata = client_addr.map(|addr| serde_json::json!({ "client_addr": addr }));
-        self.track_event(EventType::Connect, Some(session_id), metadata)
-            .await
-    }
-
-    /// Track a disconnection event
-    pub async fn track_disconnect(&self, session_id: &str) -> anyhow::Result<()> {
-        self.track_event(EventType::Disconnect, Some(session_id), None)
-            .await
-    }
-
-    /// Track a contact submission. The address itself lives in `contacts`; the
-    /// event only records that one happened.
-    pub async fn track_contact(&self, session_id: &str) -> anyhow::Result<()> {
-        self.track_event(EventType::Contact, Some(session_id), None)
-            .await
-    }
 }
 
 /// Optional database wrapper for graceful degradation
@@ -145,34 +114,46 @@ impl OptionalDatabase {
         }
     }
 
+    /// Write an analytics event without making the visitor wait for it.
+    ///
+    /// These are fire-and-forget by design (a failure is only logged), so the
+    /// Postgres round trip runs on its own task instead of in front of the
+    /// reply. Events from one session can therefore land a few milliseconds
+    /// out of order; `created_at` is stamped by the database on insert.
+    fn spawn_event(&self, event_type: EventType, session_id: &str, metadata: Option<JsonValue>) {
+        let Some(db) = self.db.clone() else {
+            return;
+        };
+        let session_id = session_id.to_owned();
+        tokio::spawn(async move {
+            if let Err(e) = db
+                .track_event(event_type, Some(&session_id), metadata)
+                .await
+            {
+                eprintln!("Failed to track {event_type}: {e}");
+            }
+        });
+    }
+
     /// Track command if database is available
-    pub async fn track_command(&self, session_id: &str, command: &str) {
-        if let Some(db) = &self.db
-            && let Err(e) = db.track_command(session_id, command).await
-        {
-            eprintln!("Failed to track command: {e}");
-        }
+    pub fn track_command(&self, session_id: &str, command: &str) {
+        let metadata = serde_json::json!({ "command": command });
+        self.spawn_event(EventType::Command, session_id, Some(metadata));
     }
 
     /// Track connect if database is available
-    pub async fn track_connect(&self, session_id: &str, client_addr: Option<&str>) {
-        if let Some(db) = &self.db
-            && let Err(e) = db.track_connect(session_id, client_addr).await
-        {
-            eprintln!("Failed to track connect: {e}");
-        }
+    pub fn track_connect(&self, session_id: &str, client_addr: Option<&str>) {
+        let metadata = client_addr.map(|addr| serde_json::json!({ "client_addr": addr }));
+        self.spawn_event(EventType::Connect, session_id, metadata);
     }
 
     /// Track disconnect if database is available
-    pub async fn track_disconnect(&self, session_id: &str) {
-        if let Some(db) = &self.db
-            && let Err(e) = db.track_disconnect(session_id).await
-        {
-            eprintln!("Failed to track disconnect: {e}");
-        }
+    pub fn track_disconnect(&self, session_id: &str) {
+        self.spawn_event(EventType::Disconnect, session_id, None);
     }
 
-    /// Store contact if database is available
+    /// Store contact if database is available. Awaited, unlike the analytics
+    /// events: its result decides what the visitor is told.
     pub async fn store_contact(&self, email: &str) -> anyhow::Result<()> {
         if let Some(db) = &self.db {
             db.store_contact(email).await?;
@@ -180,12 +161,9 @@ impl OptionalDatabase {
         Ok(())
     }
 
-    /// Track contact event if database is available
-    pub async fn track_contact(&self, session_id: &str) {
-        if let Some(db) = &self.db
-            && let Err(e) = db.track_contact(session_id).await
-        {
-            eprintln!("Failed to track contact: {e}");
-        }
+    /// Track a contact submission if database is available. The address itself
+    /// lives in `contacts`; the event only records that one happened.
+    pub fn track_contact(&self, session_id: &str) {
+        self.spawn_event(EventType::Contact, session_id, None);
     }
 }

@@ -81,8 +81,7 @@ impl ClientHandler {
         let addr_str = self.client_addr.map(|a| a.to_string());
         self.services
             .db
-            .track_connect(&self.session_id, addr_str.as_deref())
-            .await;
+            .track_connect(&self.session_id, addr_str.as_deref());
 
         let welcome = ui::render_welcome_message();
         session.data(channel, welcome.into_bytes())?;
@@ -135,7 +134,7 @@ impl ClientHandler {
 
         // Track command analytics (non-empty commands)
         if !cmd.is_empty() {
-            self.services.db.track_command(&self.session_id, &cmd).await;
+            self.services.db.track_command(&self.session_id, &cmd);
         }
 
         match cmd.as_str() {
@@ -254,7 +253,7 @@ impl ClientHandler {
     /// actually happened. Claiming an email was sent when it was not is worse
     /// than admitting the address was only recorded.
     async fn submit_contact(&self, name: &str, email: &str) -> ContactOutcome {
-        self.services.db.track_contact(&self.session_id).await;
+        self.services.db.track_contact(&self.session_id);
 
         if let Err(e) = self.services.db.store_contact(email).await {
             eprintln!("[{}] Failed to store contact: {}", self.id, e);
@@ -361,8 +360,7 @@ impl russh::server::Handler for ClientHandler {
         let addr_str = self.client_addr.map(|a| a.to_string());
         self.services
             .db
-            .track_connect(&self.session_id, addr_str.as_deref())
-            .await;
+            .track_connect(&self.session_id, addr_str.as_deref());
         self.send_message(channel, &ui::render_welcome_message(), session)?;
         self.send_message(channel, &ui::render_help(), session)?;
         session.exit_status_request(channel, 0)?;
@@ -453,7 +451,7 @@ impl russh::server::Handler for ClientHandler {
 
         // The single place a disconnect is recorded: it runs for clean exits
         // and dropped connections alike.
-        self.services.db.track_disconnect(&self.session_id).await;
+        self.services.db.track_disconnect(&self.session_id);
 
         Ok(())
     }
