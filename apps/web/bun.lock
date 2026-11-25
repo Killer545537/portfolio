@@ -11,7 +11,6 @@
         "@tailwindcss/vite": "^4.3.5",
         "@tanstack/react-router": "^1.170.46",
         "@tanstack/react-start": "^1.169.7",
-        "arktype": "^2.2.10",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "drizzle-orm": "^0.45.4",
@@ -44,10 +43,6 @@
     },
   },
   "packages": {
-    "@ark/schema": ["@ark/schema@0.56.9", "", { "dependencies": { "@ark/util": "0.56.9" } }, "sha512-3kFUweE9PagqzEC9FEOirBRrVxBj0D6o8UiZDDrCyrcaBepRFHjUezf6MuTk8mKfJ4NKzSsaUCOVK+jzcm+dPw=="],
-
-    "@ark/util": ["@ark/util@0.56.9", "", {}, "sha512-/yA1me+AMmI75VaQ5owz1A1owopAJ0ZZFXy9SI1Q69kErJfxuglQBYjGeOTFyygJjZ9Rf4UjCtD5XTuEiNiGHw=="],
-
     "@babel/code-frame": ["@babel/code-frame@7.29.7", "", { "dependencies": { "@babel/helper-validator-identifier": "^7.29.7", "js-tokens": "^4.0.0", "picocolors": "^1.1.1" } }, "sha512-Aup7aUOfpbAUg2ROOJN6Iw5f9DMBlzu0mIkm/malLQFN/YQgO48wCj0Kxa3sEHJvPVFg7siR+qRInwXd2qhQKw=="],
 
     "@babel/compat-data": ["@babel/compat-data@7.29.7", "", {}, "sha512-locTkQyKvwIEgBzVrn8693ebc97F2U8ZHjbXwDXJ5Fn2TCpNwTlKcaKLkdHop5c/icOFE7qt7Q9JC5hnKNa6Gg=="],
@@ -467,10 +462,6 @@
     "ansis": ["ansis@4.5.0", "", {}, "sha512-KwIVkfFfJSSzBmZhDGuTmkhWqTdyB5oNVzzznBJbBZ5bZtHiqSrcugRF0RKJKT4Ss3d7ZrcjnlFVDlQNmtWfWw=="],
 
     "argparse": ["argparse@2.0.1", "", {}, "sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q=="],
-
-    "arkregex": ["arkregex@0.0.15", "", { "dependencies": { "@ark/util": "0.56.9" } }, "sha512-mu9vS4b8kTipqr2AfVIL1NYhGH47CZgPdYFzB762lu4/dsxm7hmNsN3ayDahcM9OhepOpTQc+W744yh4KE+mAw=="],
-
-    "arktype": ["arktype@2.2.10", "", { "dependencies": { "@ark/schema": "0.56.9", "@ark/util": "0.56.9", "arkregex": "0.0.15" } }, "sha512-xfum3++1RGjULFBeeXph3XrejEhAfswZlpH/V5m324j8aZ/53tHUd8OPCXE1v5iU/2UEkn/ZDFUT0Exkjv96xA=="],
 
     "babel-dead-code-elimination": ["babel-dead-code-elimination@1.0.12", "", { "dependencies": { "@babel/core": "^7.23.7", "@babel/parser": "^7.23.6", "@babel/traverse": "^7.23.7", "@babel/types": "^7.23.6" } }, "sha512-GERT7L2TiYcYDtYk1IpD+ASAYXjKbLTDPhBtYj7X1NuRMDTMtAx9kyBenub1Ev41lo91OHCKdmP+egTDmfQ7Ig=="],
 

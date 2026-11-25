@@ -13,7 +13,7 @@ import { useContactModal, useTrack } from '@/lib/portfolio-context';
 /**
  * The form is uncontrolled and leans on native constraint validation
  * (`required`, `type="email"`), so the browser handles per-field messaging.
- * `submitContact`'s arktype schema is the single validator — the client copy
+ * `submitContact`'s validator is the single source of truth — the client copy
  * that used to live here could only ever agree or drift.
  */
 export function ContactModal() {
