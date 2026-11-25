@@ -1,3 +1,10 @@
 [workspace]
 resolver = "3"
 members = ["apps/ssh"]
+
+# Profiles are only honored in the workspace root; one in apps/ssh would be
+# ignored with a warning.
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true

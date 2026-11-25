@@ -6,6 +6,7 @@ use russh::{
     server::{Auth, ChannelOpenHandle, Msg, Session},
 };
 use std::net::SocketAddr;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::db::OptionalDatabase;
 use crate::email::OptionalEmailClient;
@@ -62,7 +63,10 @@ pub struct ClientHandler {
 impl ClientHandler {
     /// Create a new client handler
     pub fn new(id: usize, services: SharedServices, client_addr: Option<SocketAddr>) -> Self {
-        let session_id = format!("ssh-{}-{}", id, chrono::Utc::now().timestamp());
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let session_id = format!("ssh-{id}-{timestamp}");
 
         Self {
             services,

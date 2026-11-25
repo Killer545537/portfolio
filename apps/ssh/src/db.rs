@@ -5,7 +5,6 @@
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use sqlx::postgres::PgPoolOptions;
-use uuid::Uuid;
 
 /// Database connection pool wrapper
 #[derive(Clone)]
@@ -57,11 +56,10 @@ impl Database {
     ) -> anyhow::Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO events (id, source, event_type, session_id, metadata)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO events (source, event_type, session_id, metadata)
+            VALUES ($1, $2, $3, $4)
             "#,
         )
-        .bind(Uuid::new_v4())
         .bind("ssh")
         .bind(event_type.to_string())
         .bind(session_id)
@@ -77,12 +75,11 @@ impl Database {
     pub async fn store_contact(&self, email: &str) -> anyhow::Result<()> {
         sqlx::query(
             r#"
-            INSERT INTO contacts (id, email)
-            VALUES ($1, $2)
+            INSERT INTO contacts (email)
+            VALUES ($1)
             ON CONFLICT (email) DO NOTHING
             "#,
         )
-        .bind(Uuid::new_v4())
         .bind(email)
         .execute(&self.pool)
         .await?;
